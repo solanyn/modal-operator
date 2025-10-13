@@ -1,0 +1,99 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: modalendpoints.modal-operator.io
+spec:
+  group: modal-operator.io
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Specification for a Modal endpoint.
+            properties:
+              image:
+                description: Container image for endpoint
+                type: string
+              handler:
+                description: Handler function name
+                type: string
+              cpu:
+                default: '1.0'
+                description: CPU allocation
+                type: string
+              memory:
+                default: 512Mi
+                description: Memory allocation
+                type: string
+              gpu:
+                default: null
+                description: GPU specification
+                type: string
+                nullable: true
+              min_replicas:
+                default: 0
+                description: Minimum replicas
+                type: integer
+              max_replicas:
+                default: 10
+                description: Maximum replicas
+                type: integer
+              env:
+                additionalProperties:
+                  type: string
+                description: Environment variables
+                type: object
+            required:
+            - image
+            - handler
+            type: object
+          status:
+            description: Status of a Modal endpoint.
+            properties:
+              phase:
+                default: Pending
+                description: Endpoint phase
+                type: string
+              modal_app_id:
+                default: null
+                description: Modal app ID
+                type: string
+                nullable: true
+              endpoint_url:
+                default: null
+                description: Endpoint URL
+                type: string
+                nullable: true
+              ready_replicas:
+                default: 0
+                description: Ready replicas
+                type: integer
+              conditions:
+                description: Status conditions
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+            type: object
+        required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+    subresources:
+      status: {}
+  scope: Namespaced
+  names:
+    plural: modalendpoints
+    singular: modalendpoint
+    kind: ModalEndpoint

@@ -1,0 +1,56 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: pytorch-distributed-modal
+  namespace: default
+  annotations:
+    modal.com/enabled: "true"
+spec:
+  runtimeRef:
+    name: modal-pytorch-runtime
+    kind: ClusterTrainingRuntime
+  trainer:
+    command: ["python"]
+    args: ["-m", "torch.distributed.run", "--nproc_per_node=2", "train.py"]
+    env:
+    - name: MODAL_ENABLED
+      value: "true"
+    - name: PYTHONPATH
+      value: "/workspace"
+  podSpecOverrides:
+  - targetJobs:
+    - trainer-node
+    containers:
+    - name: trainer
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: "8Gi"
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  name: modal-pytorch-runtime
+spec:
+  template:
+    spec:
+      replicatedJobs:
+      - name: trainer-node
+        replicas: 2
+        template:
+          spec:
+            template:
+              metadata:
+                labels:
+                  trainer.kubeflow.org/trainjob-ancestor-step: trainer
+              spec:
+                containers:
+                - name: trainer
+                  image: pytorch/pytorch:latest
+                  command: ["python"]
+                  resources:
+                    requests:
+                      nvidia.com/gpu: 1
+                      cpu: "4"
+                      memory: "8Gi"

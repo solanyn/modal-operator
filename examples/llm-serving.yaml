@@ -1,0 +1,64 @@
+---
+# LLM Serving Deployment - runs as ModalFunction
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-serve
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama-serve
+  template:
+    metadata:
+      labels:
+        app: llama-serve
+      annotations:
+        modal-operator.io/workload-type: "function"
+        modal-operator.io/gpu: "A100:1"
+        modal-operator.io/cpu: "4.0"
+        modal-operator.io/memory: "16Gi"
+        modal-operator.io/handler: "app.generate"
+    spec:
+      containers:
+      - name: llama
+        image: vllm/vllm-openai:latest
+        ports:
+        - containerPort: 8000
+        command: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+        args: ["--model", "meta-llama/Llama-2-7b-chat-hf", "--port", "8000"]
+
+---
+# Service - clients connect here, requests proxy to ModalFunction
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-serve
+spec:
+  selector:
+    app: llama-serve
+  ports:
+  - port: 8000
+    targetPort: 8000
+
+---
+# Batch Training Job - runs as ModalJob  
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llama-finetune
+spec:
+  template:
+    metadata:
+      annotations:
+        modal-operator.io/workload-type: "job"
+        modal-operator.io/gpu: "A100:4"
+        modal-operator.io/cpu: "8.0"
+        modal-operator.io/memory: "32Gi"
+    spec:
+      containers:
+      - name: trainer
+        image: huggingface/transformers-pytorch-gpu:latest
+        command: ["python", "train.py"]
+        args: ["--model", "meta-llama/Llama-2-7b", "--dataset", "alpaca"]
+      restartPolicy: Never

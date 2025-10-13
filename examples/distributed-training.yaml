@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: distributed-pytorch-training
+  annotations:
+    modal-operator.io/use-modal: "true"
+    modal-operator.io/image: "pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime"
+    modal-operator.io/command: "python -c import torch; import torch.distributed as dist; print(f'Rank {os.environ.get(\"RANK\", 0)} of {os.environ.get(\"WORLD_SIZE\", 1)}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'i6pn enabled: {os.environ.get(\"MODAL_I6PN_ENABLED\", \"false\")}'); import time; time.sleep(5)"
+    modal-operator.io/replicas: "4"
+    modal-operator.io/enable-i6pn: "true"
+    modal-operator.io/gpu: "T4:1"
+    modal-operator.io/memory: "2Gi"
+    modal-operator.io/timeout: "300"
+spec:
+  containers:
+  - name: placeholder
+    image: busybox
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        nvidia.com/gpu: 1
+      limits:
+        nvidia.com/gpu: 1
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-distributed-job
+  annotations:
+    modal-operator.io/use-modal: "true"
+    modal-operator.io/image: "python:3.11-slim"
+    modal-operator.io/command: "python -c import os; print(f'Worker {os.environ.get(\"RANK\", 0)}/{os.environ.get(\"WORLD_SIZE\", 1)} starting'); import time; time.sleep(3); print(f'Worker {os.environ.get(\"RANK\", 0)} completed')"
+    modal-operator.io/replicas: "3"
+    modal-operator.io/enable-i6pn: "true"
+    modal-operator.io/timeout: "60"
+spec:
+  containers:
+  - name: placeholder
+    image: busybox
+    command: ["sleep", "30"]
+  restartPolicy: Never

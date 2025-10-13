@@ -1,0 +1,28 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: tilt-dev
+nodes:
+- role: control-plane
+  # Allow overcommit and increase resources
+  kubeadmConfigPatches:
+  - |
+    kind: KubeletConfiguration
+    # Allow overcommit of CPU and memory
+    cpuManagerPolicy: none
+    memoryManagerPolicy: None
+    # Disable resource enforcement
+    enforceNodeAllocatable: []
+    # Allow more pods per node
+    maxPods: 250
+  # Mount Docker socket for building images
+  extraMounts:
+  - hostPath: /var/run/docker.sock
+    containerPath: /var/run/docker.sock
+  # Port mappings for services
+  extraPortMappings:
+  - containerPort: 30000
+    hostPort: 30000
+    protocol: TCP
+  - containerPort: 30001
+    hostPort: 30001
+    protocol: TCP

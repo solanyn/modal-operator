@@ -1,0 +1,29 @@
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: immich-face-recognition
+  namespace: default
+spec:
+  image: ghcr.io/immich-app/immich-machine-learning:latest
+  handler: "app.recognize_faces"
+  cpu: "2.0"
+  memory: "4Gi"
+  gpu: "T4:1"
+  timeout: 600
+  concurrency: 5
+  env:
+    MODEL_CACHE_DIR: "/tmp/models"
+---
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: label-studio-inference
+  namespace: default
+spec:
+  image: heartexlabs/label-studio-ml-backend:latest
+  handler: "model.predict"
+  cpu: "1.0"
+  memory: "2Gi"
+  gpu: "T4:1"
+  timeout: 300
+  concurrency: 10

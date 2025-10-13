@@ -1,0 +1,27 @@
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: test-hello-world
+  namespace: default
+spec:
+  image: python:3.11-alpine  # Small 45MB image
+  handler: "test_function.hello_world"
+  cpu: "0.5"
+  memory: "256Mi"
+  timeout: 60
+  concurrency: 10
+  env:
+    PYTHONPATH: "/app"
+---
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: test-math
+  namespace: default
+spec:
+  image: python:3.11-alpine
+  handler: "test_function.add_numbers"
+  cpu: "0.25"
+  memory: "128Mi"
+  timeout: 30
+  concurrency: 20

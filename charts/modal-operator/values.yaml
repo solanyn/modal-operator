@@ -1,0 +1,66 @@
+replicaCount: 1
+
+image:
+  repository: modal-operator
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 8081
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Modal configuration
+modal:
+  tokenSecret: modal-token
+  defaultGpuType: "T4"
+  environment: "main"
+
+# Modal operator proxy configuration
+proxy:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: modal-operator/modal-operator-proxy
+    pullPolicy: Never
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Webhook configuration
+webhook:
+  enabled: true
+
+# Metrics configuration
+metrics:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}

@@ -1,0 +1,115 @@
+---
+# Modal Function for face recognition
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: immich-face-recognition
+  namespace: immich
+spec:
+  image: ghcr.io/immich-app/immich-machine-learning:latest
+  handler: "app.recognize_faces"
+  cpu: "2.0"
+  memory: "4Gi"
+  gpu: "T4:1"
+  timeout: 600
+  concurrency: 5
+  env:
+    MODEL_CACHE_DIR: "/tmp/models"
+    FACE_RECOGNITION_MODEL: "buffalo_l"
+
+---
+# Modal Operator Proxy for secure function calls
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modal-operator-proxy
+  namespace: immich
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: modal-operator-proxy
+  template:
+    metadata:
+      labels:
+        app: modal-operator-proxy
+    spec:
+      containers:
+      - name: proxy
+        image: modal-operator/modal-operator-proxy:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MODAL_TOKEN_ID
+          valueFrom:
+            secretKeyRef:
+              name: modal-token
+              key: token-id
+        - name: MODAL_TOKEN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: modal-token
+              key: token-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+---
+# Service for proxy
+apiVersion: v1
+kind: Service
+metadata:
+  name: modal-operator-proxy
+  namespace: immich
+spec:
+  selector:
+    app: modal-operator-proxy
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+
+---
+# Immich ML service (modified to use Modal functions)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-machine-learning
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-machine-learning
+  template:
+    metadata:
+      labels:
+        app: immich-machine-learning
+    spec:
+      containers:
+      - name: immich-ml
+        image: ghcr.io/immich-app/immich-machine-learning:latest
+        env:
+        - name: DB_HOSTNAME
+          value: immich-postgres
+        - name: MODAL_FUNCTIONS_ENABLED
+          value: "true"
+        - name: MODAL_PROXY_URL
+          value: "http://modal-operator-proxy.immich.svc.cluster.local:8080"
+        ports:
+        - containerPort: 3003
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi

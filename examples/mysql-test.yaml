@@ -1,0 +1,84 @@
+---
+# MySQL database in cluster
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-test
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: mysql-test
+  template:
+    metadata:
+      labels:
+        app: mysql-test
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "testpassword"
+        - name: MYSQL_DATABASE
+          value: "testdb"
+        ports:
+        - containerPort: 3306
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+---
+# MySQL service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-test
+  namespace: default
+spec:
+  selector:
+    app: mysql-test
+  ports:
+  - port: 3306
+    targetPort: 3306
+---
+# Modal job that connects to MySQL (tests 2-way tunneling)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: modal-mysql-client
+  namespace: default
+  annotations:
+    modal-operator.io/offload: "true"
+spec:
+  containers:
+  - name: mysql-client
+    image: mysql:8.0
+    command: 
+    - /bin/bash
+    - -c
+    - |
+      echo "Testing 2-way tunneling with MySQL..."
+      
+      # Wait for MySQL to be ready
+      until mysql -h mysql-test.default.svc.cluster.local -u root -ptestpassword -e "SELECT 1"; do
+        echo "Waiting for MySQL..."
+        sleep 5
+      done
+      
+      echo "✅ Connected to MySQL from Modal container!"
+      
+      # Create test data
+      mysql -h mysql-test.default.svc.cluster.local -u root -ptestpassword testdb -e "
+        CREATE TABLE IF NOT EXISTS tunnel_test (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          message VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO tunnel_test (message) VALUES ('Hello from Modal via 2-way tunnel!');
+        SELECT * FROM tunnel_test;
+      "
+      
+      echo "✅ 2-way tunneling test completed successfully!"
+      sleep 300  # Keep container alive for inspection
+  restartPolicy: Never

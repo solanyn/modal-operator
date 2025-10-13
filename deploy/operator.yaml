@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: modal-vgpu-operator
+  namespace: modal-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: modal-vgpu-operator
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/status"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["modal-operator.io"]
+  resources: ["modaljobs", "modalendpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["modal-operator.io"]
+  resources: ["modaljobs/status", "modalendpoints/status"]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: modal-vgpu-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: modal-vgpu-operator
+subjects:
+- kind: ServiceAccount
+  name: modal-vgpu-operator
+  namespace: modal-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modal-vgpu-operator
+  namespace: modal-system
+  labels:
+    app: modal-vgpu-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: modal-vgpu-operator
+  template:
+    metadata:
+      labels:
+        app: modal-vgpu-operator
+    spec:
+      serviceAccountName: modal-vgpu-operator
+      containers:
+      - name: operator
+        image: modal-vgpu-operator:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8081
+          name: metrics
+        env:
+        - name: MOCK_MODAL
+          value: "true"
+        - name: MODAL_ENVIRONMENT
+          value: "dev"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: modal-vgpu-operator
+  namespace: modal-system
+  labels:
+    app: modal-vgpu-operator
+spec:
+  selector:
+    app: modal-vgpu-operator
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 8081
+    targetPort: 8081

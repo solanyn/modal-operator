@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: modal-container-example
+  namespace: default
+  annotations:
+    # Enable Modal container mode
+    modal-operator.io/use-modal: "true"
+    
+    # Container specification
+    modal-operator.io/image: "python:3.11-slim"
+    modal-operator.io/command: "python -c import sys; print(f'Hello from Modal! Python {sys.version}'); import time; time.sleep(30)"
+    
+    # Resource requests
+    modal-operator.io/cpu: "1.0"
+    modal-operator.io/memory: "512Mi"
+    modal-operator.io/timeout: "300"
+    
+    # Environment variables
+    modal-operator.io/env-PYTHONPATH: "/app"
+    modal-operator.io/env-LOG_LEVEL: "INFO"
+spec:
+  containers:
+  - name: placeholder
+    image: busybox
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: modal-gpu-training
+  namespace: default
+  annotations:
+    # Enable Modal container with GPU
+    modal-operator.io/use-modal: "true"
+    
+    # PyTorch GPU container
+    modal-operator.io/image: "pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime"
+    modal-operator.io/command: "python -c import torch; print(f'PyTorch {torch.__version__}'); print(f'CUDA: {torch.cuda.is_available()}'); import time; time.sleep(60)"
+    
+    # GPU resources
+    modal-operator.io/gpu: "T4:1"
+    modal-operator.io/memory: "2Gi"
+    modal-operator.io/timeout: "600"
+spec:
+  containers:
+  - name: placeholder
+    image: busybox
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        nvidia.com/gpu: 1
+      limits:
+        nvidia.com/gpu: 1
+  restartPolicy: Never

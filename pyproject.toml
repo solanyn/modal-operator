@@ -1,0 +1,119 @@
+[build-system]
+requires = ["setuptools~=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modal-operator"
+description = "Modal Operator for Kubernetes - enables serverless compute workloads by offloading pods to Modal's cloud infrastructure"
+readme = "README.md"
+version = "0.0.1"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+authors = [
+    { name = "Modal vGPU Operator Team" }
+]
+dependencies = [
+    "kopf>=1.37.0",
+    "modal>=0.64.0",
+    "kubernetes>=28.0.0",
+    "pydantic>=2.0.0",
+    "prometheus-client>=0.19.0",
+    "aiohttp",
+    "rich>=12.0.0",
+    "typer>=0.9",
+    "typing_extensions~=4.6",
+    "python-dotenv>=1.0.0",
+    "flask>=2.0.0",
+    "click>=8.0.0",
+]
+keywords = ["kubernetes", "operator", "modal", "gpu", "serverless", "kubeflow"]
+classifiers = [
+    "Topic :: System :: Distributed Computing",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "invoke~=2.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/modal-labs/mvgpu-operator"
+Source = "https://github.com/modal-labs/mvgpu-operator"
+"Issue Tracker" = "https://github.com/modal-labs/mvgpu-operator/issues"
+
+[project.scripts]
+modal-operator = "modal_operator.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["modal_operator", "modal_operator.*"]
+exclude = ["test*"]
+
+[tool.setuptools.package-data]
+mvgpu = ["py.typed", "*.pyi"]
+
+[tool.mypy]
+python_version = "3.11"
+exclude = "build"
+ignore_missing_imports = true
+check_untyped_defs = true
+no_strict_optional = true
+namespace_packages = true
+
+[tool.pytest.ini_options]
+timeout = 300
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    "error::DeprecationWarning",
+    "ignore::DeprecationWarning:pytest.*:",
+    "ignore::DeprecationWarning:pkg_resources.*:",
+]
+
+[tool.ruff]
+line-length = 120
+exclude = [
+    '.venv',
+    '.git',
+    '__pycache__',
+    'build',
+]
+
+[tool.ruff.lint]
+ignore = ['E741', 'F841']
+select = [
+    'E',
+    'F',
+    'W',
+    'I',
+    'RUF006', # asyncio-dangling-task
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*_test.py" = ['E712']
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = [
+    "mvgpu",
+]
+extra-standard-library = ["pytest"]
+
+[dependency-groups]
+dev = [
+    "invoke>=2.2.0",
+    "mypy>=1.18.2",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.13.3",
+    "requests>=2.31.0",
+]

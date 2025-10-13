@@ -1,0 +1,60 @@
+apiVersion: kubeflow.org/v1beta1
+kind: Experiment
+metadata:
+  name: modal-gpu-experiment
+  namespace: kubeflow
+spec:
+  algorithm:
+    algorithmName: random
+  objective:
+    type: maximize
+    goal: 0.99
+    objectiveMetricName: Validation-accuracy
+  parameters:
+  - name: lr
+    parameterType: double
+    feasibleSpace:
+      min: "0.01"
+      max: "0.03"
+  - name: batch-size
+    parameterType: int
+    feasibleSpace:
+      min: "16"
+      max: "128"
+  trialTemplate:
+    primaryContainerName: training-container
+    trialParameters:
+    - name: learningRate
+      description: Learning rate for the training model
+      reference: lr
+    - name: batchSize
+      description: Batch size for training
+      reference: batch-size
+    trialSpec:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        annotations:
+          modal-operator.io/offload: "true"
+          modal-operator.io/gpu-type: "T4"
+      spec:
+        containers:
+        - name: training-container
+          image: pytorch/pytorch:latest
+          command:
+          - "python3"
+          - "/opt/pytorch-mnist/mnist.py"
+          - "--epochs=10"
+          - "--lr=${trialParameters.learningRate}"
+          - "--batch-size=${trialParameters.batchSize}"
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+              memory: "2Gi"
+            limits:
+              nvidia.com/gpu: 1
+              memory: "4Gi"
+        restartPolicy: Never
+  parallelTrialCount: 3
+  maxTrialCount: 12
+  maxFailedTrialCount: 3
