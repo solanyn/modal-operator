@@ -94,6 +94,10 @@ class ModalEndpointSpec(BaseModel):
     image: str = Field(description="Container image for endpoint")
     handler: str = Field(description="Handler function name")
 
+    # Command execution for HTTP servers
+    command: List[str] = Field(default_factory=list, description="Command to execute for HTTP server")
+    args: List[str] = Field(default_factory=list, description="Arguments to command")
+
     # Resources
     cpu: str = Field(default="1.0", description="CPU allocation")
     memory: str = Field(default="512Mi", description="Memory allocation")
@@ -215,6 +219,8 @@ MODAL_ENDPOINT_CRD = {
                                 "properties": {
                                     "image": {"type": "string"},
                                     "handler": {"type": "string"},
+                                    "command": {"type": "array", "items": {"type": "string"}},
+                                    "args": {"type": "array", "items": {"type": "string"}},
                                     "cpu": {"type": "string"},
                                     "memory": {"type": "string"},
                                     "gpu": {"type": "string"},

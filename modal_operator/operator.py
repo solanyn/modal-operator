@@ -358,6 +358,8 @@ async def create_modal_endpoint(spec, name, namespace, logger, **kwargs):
             memory=spec.get("memory", "512Mi"),
             gpu=spec.get("gpu"),
             env=spec.get("env", {}),
+            command=spec.get("command"),
+            args=spec.get("args"),
         )
 
         # Update status - return status directly for Kopf

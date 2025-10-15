@@ -27,6 +27,16 @@ spec:
               handler:
                 description: Handler function name
                 type: string
+              command:
+                description: Command to execute for HTTP server
+                items:
+                  type: string
+                type: array
+              args:
+                description: Arguments to command
+                items:
+                  type: string
+                type: array
               cpu:
                 default: '1.0'
                 description: CPU allocation

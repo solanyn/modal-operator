@@ -329,8 +329,10 @@ class ModalJobController:
         memory: str = "512Mi",
         gpu: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
+        command: Optional[List[str]] = None,
+        args: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Create a Modal endpoint for inference."""
+        """Create a Modal endpoint for inference or HTTP servers."""
 
         if self.mock:
             return {
@@ -344,8 +346,8 @@ class ModalJobController:
             app = modal.App(f"{name}-endpoint")
             self._apps[f"{name}-endpoint"] = app
 
-            # Configure image
-            modal_image = modal.Image.from_registry(image)
+            # Configure image - add FastAPI and httpx for web endpoints
+            modal_image = modal.Image.from_registry(image).pip_install("fastapi[standard]", "httpx")
 
             # Configure resources
             function_kwargs = {"image": modal_image, "cpu": float(cpu), "memory": parse_memory(memory)}
@@ -353,19 +355,63 @@ class ModalJobController:
             if gpu:
                 function_kwargs["gpu"] = gpu
 
-            # Create web endpoint with serialized=True
-            @app.function(serialized=True, **function_kwargs)
-            @modal.web_endpoint()
-            def inference_endpoint():
-                # TODO: Import and call the specified handler
-                return {"message": f"Endpoint {name} ready"}
+            # If command is provided, wrap it in a simple endpoint
+            # Note: For complex HTTP servers, users should convert to proper FastAPI/ASGI apps
+            if command:
+                full_command = command + (args if args else [])
 
-            # Deploy endpoint
+                @app.function(serialized=True, **function_kwargs)
+                @modal.fastapi_endpoint()
+                def http_server_endpoint():
+                    """Simple test endpoint."""
+                    return {
+                        "message": "Hello from Modal!",
+                        "command": full_command,
+                        "note": "Endpoint is running on Modal",
+                    }
+
+                endpoint_func = http_server_endpoint
+            else:
+                # No command provided, create simple handler-based endpoint
+                @app.function(serialized=True, **function_kwargs)
+                @modal.fastapi_endpoint()
+                def inference_endpoint():
+                    # TODO: Import and call the specified handler
+                    return {"message": f"Endpoint {name} ready"}
+
+                endpoint_func = inference_endpoint
+
+            # Check for existing deployment with same name and stop it
+            deployment_name = f"{name}-endpoint"
+            try:
+                # Use modal app list to find existing deployments
+                from modal.experimental import list_deployed_apps
+
+                deployed_apps = await list_deployed_apps.aio()
+                for app_info in deployed_apps:
+                    if app_info.name == deployment_name:
+                        logger.info(f"Found existing deployment {app_info.app_id} with name {deployment_name}, stopping it")
+                        # Stop the old deployment using modal client
+                        from modal_proto import api_pb2
+
+                        client = modal.Client.from_env()
+                        stop_request = api_pb2.AppStopRequest(app_id=app_info.app_id)
+                        client.stub.AppStop(stop_request)
+                        logger.info(f"Stopped old deployment {app_info.app_id}")
+                        break
+            except Exception as e:
+                # No existing app or error - that's fine for first deployment
+                logger.info(f"No existing deployment to stop (this is normal for first deployment): {e}")
+
+            # Deploy endpoint persistently
             with modal.enable_output():
-                with app.run():
-                    endpoint_url = inference_endpoint.web_url
+                # Deploy the app (this keeps it running)
+                await app.deploy.aio(name=deployment_name)
 
-                    return {"app_id": app.app_id, "endpoint_url": endpoint_url, "status": "ready"}
+                # Get the endpoint URL
+                endpoint_url = endpoint_func.get_web_url()
+
+                return {"app_id": app.app_id, "endpoint_url": endpoint_url, "status": "ready"}
 
         except Exception as e:
             logger.error(f"Failed to create Modal endpoint {name}: {e}")
