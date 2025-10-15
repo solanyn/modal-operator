@@ -362,37 +362,84 @@ async def create_modal_endpoint(spec, name, namespace, logger, **kwargs):
             args=spec.get("args"),
         )
 
-        # Update status - return status directly for Kopf
-        return {
-            "phase": "Ready",
-            "modal_app_id": endpoint_result["app_id"],
-            "endpoint_url": endpoint_result["endpoint_url"],
-            "ready_replicas": 1,
-            "conditions": [
-                {
-                    "type": "Ready",
-                    "status": "True",
-                    "lastTransitionTime": datetime.utcnow().isoformat(),
-                    "reason": "EndpointReady",
-                    "message": "Modal endpoint is ready",
+        # Update status using direct patching (same as ModalJob)
+        try:
+            custom_api = client.CustomObjectsApi()
+
+            status_patch = {
+                "status": {
+                    "phase": "Ready",
+                    "modal_app_id": endpoint_result["app_id"],
+                    "endpoint_url": endpoint_result["endpoint_url"],
+                    "ready_replicas": 1,
+                    "conditions": [
+                        {
+                            "type": "Ready",
+                            "status": "True",
+                            "lastTransitionTime": datetime.utcnow().isoformat(),
+                            "reason": "EndpointReady",
+                            "message": f"Modal endpoint is ready at {endpoint_result['endpoint_url']}",
+                        }
+                    ],
                 }
-            ],
-        }
+            }
+
+            custom_api.patch_namespaced_custom_object_status(
+                group="modal-operator.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="modalendpoints",
+                name=name,
+                body=status_patch,
+            )
+            logger.info(f"Successfully updated status for ModalEndpoint {name} to Ready. URL: {endpoint_result['endpoint_url']}")
+
+        except Exception as status_error:
+            logger.error(f"Failed to update status for ModalEndpoint {name}: {status_error}")
+            # Don't fail the whole operation if status update fails
+            metrics.record_error(error_type="status_update_failed", component="kubernetes_api")
+
+        return None
 
     except Exception as e:
-        logger.error(f"Failed to create ModalEndpoint {name}: {e}")
-        return {
-            "phase": "Failed",
-            "conditions": [
-                {
-                    "type": "Ready",
-                    "status": "False",
-                    "lastTransitionTime": datetime.utcnow().isoformat(),
-                    "reason": "CreationFailed",
-                    "message": str(e),
+        logger.error(f"Failed to create ModalEndpoint {name}: {e}", exc_info=True)
+
+        # Record error metrics
+        error_type = type(e).__name__
+        metrics.record_error(error_type=f"endpoint_creation_failed_{error_type.lower()}", component="modal_client")
+
+        # Update status to Failed with detailed error info
+        try:
+            custom_api = client.CustomObjectsApi()
+            status_patch = {
+                "status": {
+                    "phase": "Failed",
+                    "conditions": [
+                        {
+                            "type": "Ready",
+                            "status": "False",
+                            "lastTransitionTime": datetime.utcnow().isoformat(),
+                            "reason": f"CreationFailed_{error_type}",
+                            "message": f"{error_type}: {str(e)[:200]}",
+                        }
+                    ],
                 }
-            ],
-        }
+            }
+
+            custom_api.patch_namespaced_custom_object_status(
+                group="modal-operator.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="modalendpoints",
+                name=name,
+                body=status_patch,
+            )
+            logger.info(f"Updated ModalEndpoint {name} status to Failed")
+
+        except Exception as status_error:
+            logger.error(f"Failed to update error status for ModalEndpoint {name}: {status_error}")
+
+        return None
 
 
 # Pod interception (existing functionality)
