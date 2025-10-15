@@ -343,6 +343,7 @@ async def delete_modal_function(spec, name, namespace, **kwargs):
     return {"message": "Function deleted"}
 
 
+@kopf.on.create("modal-operator.io", "v1alpha1", "modalendpoints")
 async def create_modal_endpoint(spec, name, namespace, logger, **kwargs):
     """Handle ModalEndpoint creation."""
     logger.info(f"Creating ModalEndpoint {name} in namespace {namespace}")
@@ -528,29 +529,41 @@ async def pod_created(body, name, namespace, logger, **kwargs):
 
 @kopf.on.create("", "v1", "pods", annotations={"modal-operator.io/mutated": "true"})
 async def mutated_pod_created(body, name, namespace, logger, **kwargs):
-    """Handle webhook-mutated pods - create corresponding ModalJob."""
+    """Handle webhook-mutated pods - create corresponding ModalJob or ModalFunction."""
     try:
         annotations = body.get("metadata", {}).get("annotations", {})
+        labels = body.get("metadata", {}).get("labels", {})
 
-        # Check if ModalJob already exists
+        # Determine workload type from label
+        workload_type = labels.get("modal-operator.io/workload-type", "job")
+
+        # Check if resource already exists
         custom_api = client.CustomObjectsApi()
-        modal_job_name = f"{name}-modal"
+        resource_name = f"{name}-modal"
+
+        # Use ModalEndpoint for HTTP services, ModalJob for batch jobs
+        if workload_type == "function":
+            resource_kind = "ModalEndpoint"
+            resource_plural = "modalendpoints"
+        else:
+            resource_kind = "ModalJob"
+            resource_plural = "modaljobs"
 
         try:
             custom_api.get_namespaced_custom_object(
                 group="modal-operator.io",
                 version="v1alpha1",
                 namespace=namespace,
-                plural="modaljobs",
-                name=modal_job_name
+                plural=resource_plural,
+                name=resource_name
             )
-            logger.info(f"ModalJob {modal_job_name} already exists, skipping creation")
+            logger.info(f"{resource_kind} {resource_name} already exists, skipping creation")
             return
         except client.exceptions.ApiException as e:
             if e.status != 404:
                 raise
 
-        logger.info(f"Creating ModalJob for webhook-mutated pod {name}")
+        logger.info(f"Creating {resource_kind} for webhook-mutated pod {name}")
 
         # Convert pod to ModalJob using original container specs from environment variables
         original_images = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[2].get("value", "[]"))
@@ -559,38 +572,52 @@ async def mutated_pod_created(body, name, namespace, logger, **kwargs):
         original_args = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[5].get("value", "[]"))
         original_env = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[6].get("value", "{}"))
 
-        # Build ModalJob spec from original container specs
-        modal_job_spec = {
+        # Build spec from original container specs
+        spec = {
             "image": original_images[0] if original_images else "python:3.11-slim",
-            "command": original_commands[0] if original_commands else None,
-            "args": original_args[0] if original_args else None,
             "env": original_env,
             "cpu": annotations.get("modal-operator.io/cpu", "1.0"),
             "memory": annotations.get("modal-operator.io/memory", "1Gi"),
             "gpu": annotations.get("modal-operator.io/gpu"),
-            "timeout": int(annotations.get("modal-operator.io/timeout", "600")),
         }
 
-        # Remove None values
-        modal_job_spec = {k: v for k, v in modal_job_spec.items() if v is not None}
+        # Add workload-specific fields
+        if workload_type == "function":
+            # ModalEndpoint for HTTP services - wraps command in web endpoint
+            spec["handler"] = "serve"
+            # Store original command/args for execution
+            if original_commands and original_commands[0]:
+                spec["command"] = original_commands[0]
+            if original_args and original_args[0]:
+                spec["args"] = original_args[0]
+        else:
+            # ModalJob for batch processing
+            spec["timeout"] = int(annotations.get("modal-operator.io/timeout", "600"))
+            if original_commands and original_commands[0]:
+                spec["command"] = original_commands[0]
+            if original_args and original_args[0]:
+                spec["args"] = original_args[0]
 
-        # Create ModalJob CRD
-        modal_job = {
+        # Remove None values
+        spec = {k: v for k, v in spec.items() if v is not None}
+
+        # Create resource CRD
+        resource = {
             "apiVersion": "modal-operator.io/v1alpha1",
-            "kind": "ModalJob",
+            "kind": resource_kind,
             "metadata": {
-                "name": modal_job_name,
+                "name": resource_name,
                 "namespace": namespace,
                 "labels": {"modal-operator.io/original-pod": name},
             },
-            "spec": modal_job_spec,
+            "spec": spec,
         }
 
         custom_api.create_namespaced_custom_object(
-            group="modal-operator.io", version="v1alpha1", namespace=namespace, plural="modaljobs", body=modal_job
+            group="modal-operator.io", version="v1alpha1", namespace=namespace, plural=resource_plural, body=resource
         )
 
-        logger.info(f"Created ModalJob {modal_job_name} for webhook-mutated pod {name}")
+        logger.info(f"Created {resource_kind} {resource_name} for webhook-mutated pod {name}")
 
     except Exception as e:
         logger.error(f"Error creating ModalJob for mutated pod {name}: {e}")

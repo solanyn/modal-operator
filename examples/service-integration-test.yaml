@@ -12,7 +12,7 @@ metadata:
   labels:
     app: http-server
     test: integration
-    modal-operator.io/workload-type: "job"  # Required for webhook mutation
+    modal-operator.io/workload-type: "function"  # Creates ModalFunction for HTTP services
 spec:
   containers:
   - name: server

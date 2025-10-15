@@ -27,16 +27,33 @@ else
     exit 1
 fi
 
-# Wait for ModalJob and stream logs
-echo "Waiting for ModalJob $MODALJOB_NAME..."
+# Wait for Modal resource and stream logs
+echo "Waiting for Modal resource $MODALJOB_NAME..."
 
 # Unset proxy for kubectl (proxy is for workload, not API access)
 unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
 
 while true; do
+    # Try ModalJob first (batch workloads)
     APP_ID=$(kubectl get modaljob $MODALJOB_NAME -o jsonpath='{.status.modal_app_id}' 2>/dev/null || echo "")
+    RESOURCE_TYPE="ModalJob"
+
+    # If not found, try ModalEndpoint (HTTP services)
+    if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
+        APP_ID=$(kubectl get modalendpoint $MODALJOB_NAME -o jsonpath='{.status.modal_app_id}' 2>/dev/null || echo "")
+        RESOURCE_TYPE="ModalEndpoint"
+        ENDPOINT_URL=$(kubectl get modalendpoint $MODALJOB_NAME -o jsonpath='{.status.endpoint_url}' 2>/dev/null || echo "")
+    fi
+
     if [ ! -z "$APP_ID" ] && [ "$APP_ID" != "null" ]; then
-        echo "📡 Streaming logs for Modal app: $APP_ID"
+        echo "📡 Found $RESOURCE_TYPE with Modal app: $APP_ID"
+
+        # For endpoints, also show the URL
+        if [ "$RESOURCE_TYPE" = "ModalEndpoint" ] && [ ! -z "$ENDPOINT_URL" ]; then
+            echo "🌐 HTTP Endpoint: $ENDPOINT_URL"
+        fi
+
+        # Stream logs
         python -m modal app logs $APP_ID | python3 -c "
 import sys, json
 from datetime import datetime
