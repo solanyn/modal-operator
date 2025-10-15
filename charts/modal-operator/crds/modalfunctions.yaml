@@ -4,11 +4,6 @@ metadata:
   name: modalfunctions.modal-operator.io
 spec:
   group: modal-operator.io
-  scope: Namespaced
-  names:
-    plural: modalfunctions
-    singular: modalfunction
-    kind: ModalFunction
   versions:
   - name: v1alpha1
     served: true
@@ -17,57 +12,99 @@ spec:
       openAPIV3Schema:
         type: object
         properties:
-          spec:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
             type: object
+          spec:
+            description: Specification for a Modal function.
             properties:
               image:
+                description: Container image for the function
                 type: string
               handler:
+                description: Python handler function (e.g., 'app.process_image')
                 type: string
               cpu:
+                default: '1.0'
+                description: CPU allocation
                 type: string
               memory:
+                default: 512Mi
+                description: Memory allocation
                 type: string
               gpu:
+                default: null
+                description: GPU specification (e.g., T4:1)
                 type: string
+                nullable: true
               env:
+                additionalProperties:
+                  type: string
+                description: Environment variables
                 type: object
               timeout:
+                default: 300
+                description: Function timeout in seconds
                 type: integer
               concurrency:
+                default: 1
+                description: Max concurrent executions
                 type: integer
             required:
             - image
             - handler
-          status:
             type: object
+          status:
+            description: Status of a Modal function.
             properties:
               phase:
+                default: Pending
+                description: Function phase
                 type: string
               modal_app_id:
+                default: null
+                description: Modal app ID
                 type: string
+                nullable: true
               function_url:
+                default: null
+                description: Function invocation URL
                 type: string
+                nullable: true
               message:
+                default: null
+                description: Status message
                 type: string
+                nullable: true
               created_at:
+                default: null
+                description: Creation timestamp
                 type: string
+                nullable: true
               deployed_at:
+                default: null
+                description: Deployment timestamp
                 type: string
+                nullable: true
               conditions:
-                type: array
+                description: Status conditions
                 items:
+                  additionalProperties: true
                   type: object
-                  properties:
-                    type:
-                      type: string
-                    status:
-                      type: string
-                    lastTransitionTime:
-                      type: string
-                    reason:
-                      type: string
-                    message:
-                      type: string
+                type: array
+            type: object
+        required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
     subresources:
       status: {}
+  scope: Namespaced
+  names:
+    plural: modalfunctions
+    singular: modalfunction
+    kind: ModalFunction

@@ -30,11 +30,14 @@ fi
 # Wait for ModalJob and stream logs
 echo "Waiting for ModalJob $MODALJOB_NAME..."
 
+# Unset proxy for kubectl (proxy is for workload, not API access)
+unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+
 while true; do
     APP_ID=$(kubectl get modaljob $MODALJOB_NAME -o jsonpath='{.status.modal_app_id}' 2>/dev/null || echo "")
     if [ ! -z "$APP_ID" ] && [ "$APP_ID" != "null" ]; then
         echo "📡 Streaming logs for Modal app: $APP_ID"
-        python -m modal app logs $APP_ID --follow | python3 -c "
+        python -m modal app logs $APP_ID | python3 -c "
 import sys, json
 from datetime import datetime
 pod_name = '$POD_NAME'

@@ -213,7 +213,7 @@ if __name__ == "__main__":
     test_content = '''
 import pytest
 from modal_operator.crds import ModalJobSpec, ModalJobStatus
-from modal_operator.networking import NetworkingConfig, NetworkingController
+from modal_operator.controllers.networking_controller import NetworkingConfig, NetworkingController
 
 class TestCRDs:
     """Test CRD models."""
@@ -280,7 +280,7 @@ class TestFramework:
     def test_imports(self):
         """Test that all modules can be imported."""
         import modal_operator.crds
-        import modal_operator.networking
+        import modal_operator.controllers.networking_controller
         assert True
     
     def test_pydantic_validation(self):

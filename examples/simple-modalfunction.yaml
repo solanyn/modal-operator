@@ -1,0 +1,41 @@
+---
+# Simple Python ModalFunction for testing
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: simple-hello
+  namespace: default
+  labels:
+    app: simple-test
+spec:
+  image: python:3.11-slim
+  handler: "main"
+  cpu: "1.0"
+  memory: "512Mi"
+  timeout: 300
+  concurrency: 10
+  env:
+    MESSAGE: "Hello from Modal!"
+    TEST_VAR: "test-value"
+
+---
+# Test Pod that calls the function
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-test-client
+  namespace: default
+spec:
+  containers:
+  - name: client
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "Waiting for Modal function to be ready..."
+      sleep 10
+      echo "Testing Modal function..."
+      echo "ModalFunction should be accessible at: simple-hello.default.svc.cluster.local"
+      sleep infinity
+  restartPolicy: Never

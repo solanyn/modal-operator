@@ -1,0 +1,52 @@
+---
+# HTTP Server ModalJob with tunnel for integration testing
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalJob
+metadata:
+  name: http-server-test
+  namespace: default
+  labels:
+    app: http-server
+    test: integration
+spec:
+  image: python:3.11-slim
+  command: ["python", "-m", "http.server", "8000"]
+  cpu: "1.0"
+  memory: "512Mi"
+  gpu: ""
+  timeout: 3600
+  tunnel_enabled: true
+  tunnel_port: 8000
+  env:
+    SERVER_MESSAGE: "Hello from Modal via Tunnel!"
+
+---
+# Client pod to test access to the HTTP server
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-client-test
+  namespace: default
+  labels:
+    app: http-client
+    test: integration
+spec:
+  containers:
+  - name: client
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "Waiting for HTTP server to be ready..."
+      sleep 10
+      echo "Testing HTTP server access..."
+
+      # Try accessing via service name (if service is created)
+      echo "Attempting to access http-server-test.default.svc.cluster.local:8000"
+      curl -v http://http-server-test.default.svc.cluster.local:8000 || echo "Service access failed"
+
+      # Keep pod running for manual testing
+      echo "Pod ready for manual testing. Use: kubectl exec http-client-test -- curl http-server-test:8000"
+      sleep infinity
+  restartPolicy: Never

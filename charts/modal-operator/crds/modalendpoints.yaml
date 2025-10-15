@@ -78,16 +78,6 @@ spec:
                 default: 0
                 description: Ready replicas
                 type: integer
-              mirror_pod_name:
-                default: null
-                description: Mirror pod name
-                type: string
-                nullable: true
-              mirror_pod_namespace:
-                default: null
-                description: Mirror pod namespace
-                type: string
-                nullable: true
               conditions:
                 description: Status conditions
                 items:

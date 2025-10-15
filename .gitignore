@@ -63,3 +63,6 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Conversation logs and temporary markdown
+q.md

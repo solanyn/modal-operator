@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import modal
 from pydantic import BaseModel, Field
 
-from modal_operator.modal_client import ModalJobController
+from modal_operator.controllers.modal_job_controller import ModalJobController
 
 
 class NetworkingConfig(BaseModel):

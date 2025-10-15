@@ -1,0 +1,19 @@
+---
+# Simple HTTP server ModalFunction for testing
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: http-server
+  namespace: default
+  labels:
+    app: http-server
+spec:
+  image: python:3.11-slim
+  handler: "serve"
+  cpu: "1.0"
+  memory: "512Mi"
+  timeout: 600
+  concurrency: 10
+  env:
+    SERVER_PORT: "8000"
+    MESSAGE: "Hello from Modal HTTP Server!"

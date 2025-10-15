@@ -1,0 +1,36 @@
+---
+# Test pod for webhook mutation
+# This pod should be intercepted by the mutating webhook and offloaded to Modal
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webhook-test-python
+  namespace: default
+  annotations:
+    modal-operator.io/offload: "true"
+    modal-operator.io/gpu: "T4:1"
+  labels:
+    test: webhook-mutation
+spec:
+  containers:
+  - name: python-app
+    image: python:3.11-slim
+    command: ["python", "-c"]
+    args:
+      - |
+        import os
+        import time
+        print("Python app starting...")
+        print(f"Running on: {os.getenv('HOSTNAME', 'unknown')}")
+        print(f"Modal execution: {os.getenv('MODAL_EXECUTION', 'false')}")
+        for i in range(10):
+            print(f"Iteration {i+1}/10")
+            time.sleep(2)
+        print("Python app completed!")
+    resources:
+      requests:
+        cpu: "1.0"
+        memory: "512Mi"
+      limits:
+        nvidia.com/gpu: 1
+  restartPolicy: Never

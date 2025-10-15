@@ -96,19 +96,14 @@ spec:
                 description: Modal function ID
                 type: string
                 nullable: true
-              mirror_pod_name:
-                default: null
-                description: Mirror pod name
-                type: string
-                nullable: true
-              mirror_pod_namespace:
-                default: null
-                description: Mirror pod namespace
-                type: string
-                nullable: true
               tunnel_url:
                 default: null
                 description: Tunnel URL if enabled
+                type: string
+                nullable: true
+              log_url:
+                default: null
+                description: Modal app logs URL
                 type: string
                 nullable: true
               created_at:

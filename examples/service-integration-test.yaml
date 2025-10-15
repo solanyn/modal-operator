@@ -1,0 +1,103 @@
+---
+# Simple HTTP server pod that will be offloaded to Modal via webhook
+# The webhook will inject the modal-operator-proxy sidecar
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-http-server
+  namespace: default
+  annotations:
+    modal-operator.io/offload: "true"
+    modal-operator.io/gpu: "T4:1"
+  labels:
+    app: http-server
+    test: integration
+    modal-operator.io/workload-type: "job"  # Required for webhook mutation
+spec:
+  containers:
+  - name: server
+    image: python:3.11-slim
+    command:
+    - python
+    - -c
+    - |
+      from http.server import HTTPServer, BaseHTTPRequestHandler
+      class Handler(BaseHTTPRequestHandler):
+          def do_GET(self):
+              self.send_response(200)
+              self.send_header('Content-type', 'text/html')
+              self.end_headers()
+              self.wfile.write(b'Hello from Modal HTTP Server!')
+          def log_message(self, format, *args):
+              print(f"{self.address_string()} - {format%args}")
+      server = HTTPServer(('0.0.0.0', 8000), Handler)
+      print("HTTP Server listening on port 8000")
+      server.serve_forever()
+    ports:
+    - containerPort: 8000
+      name: http
+  restartPolicy: Never
+
+---
+# Kubernetes Service for the HTTP server
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-http-server
+  namespace: default
+  labels:
+    app: http-server
+spec:
+  selector:
+    app: http-server
+    test: integration
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# Client pod to test accessing the HTTP server
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-server-client
+  namespace: default
+  labels:
+    app: http-client
+    test: integration
+spec:
+  containers:
+  - name: client
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "===== Modal Operator Service Integration Test ====="
+      echo "Waiting for HTTP server to be ready..."
+      sleep 15
+
+      echo ""
+      echo "Testing service access via ClusterIP..."
+      echo "Target: simple-http-server.default.svc.cluster.local:8000"
+      echo ""
+
+      for i in 1 2 3 4 5; do
+        echo "Attempt $i/5:"
+        if curl -v --connect-timeout 5 http://simple-http-server.default.svc.cluster.local:8000 2>&1; then
+          echo "✅ Service access successful!"
+          break
+        else
+          echo "❌ Service access failed, retrying in 5s..."
+          sleep 5
+        fi
+      done
+
+      echo ""
+      echo "Test complete. Pod will remain running for manual testing."
+      echo "Manual test command: kubectl exec http-server-client -- curl http://simple-http-server:8000"
+      sleep infinity
+  restartPolicy: Never

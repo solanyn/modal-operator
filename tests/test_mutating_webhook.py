@@ -1,15 +1,15 @@
-"""Tests for ModalMutatingWebhook."""
+"""Tests for ModalWebhookController."""
 
 import pytest
 from unittest.mock import Mock
 
 from kubernetes import client
 
-from modal_operator.webhook import ModalMutatingWebhook
+from modal_operator.controllers.webhook_controller import ModalWebhookController
 
 
-class TestModalMutatingWebhook:
-    """Test cases for ModalMutatingWebhook."""
+class TestModalWebhookController:
+    """Test cases for ModalWebhookController."""
 
     @pytest.fixture
     def mock_k8s_client(self):
@@ -18,8 +18,8 @@ class TestModalMutatingWebhook:
 
     @pytest.fixture
     def webhook(self, mock_k8s_client):
-        """ModalMutatingWebhook instance with mocked client."""
-        return ModalMutatingWebhook(mock_k8s_client)
+        """ModalWebhookController instance with mocked client."""
+        return ModalWebhookController(mock_k8s_client)
 
     def test_mutate_pod_with_modal_annotation(self, webhook, mock_k8s_client):
         """Test pod mutation with Modal annotation."""

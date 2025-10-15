@@ -5,7 +5,14 @@ from pathlib import Path
 
 import yaml
 
-from modal_operator.crds import ModalEndpointSpec, ModalEndpointStatus, ModalJobSpec, ModalJobStatus
+from modal_operator.crds import (
+    ModalEndpointSpec,
+    ModalEndpointStatus,
+    ModalFunctionSpec,
+    ModalFunctionStatus,
+    ModalJobSpec,
+    ModalJobStatus,
+)
 
 
 def pydantic_to_openapi_schema(model_class):
@@ -101,7 +108,7 @@ def generate_crd(name, group, version, kind, spec_model, status_model=None):
 
 def main():
     """Generate all CRDs."""
-    output_dir = Path("charts/modal-vgpu-operator/crds")
+    output_dir = Path("charts/modal-operator/crds")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate ModalJob CRD
@@ -124,6 +131,16 @@ def main():
         status_model=ModalEndpointStatus,
     )
 
+    # Generate ModalFunction CRD
+    modalfunction_crd = generate_crd(
+        name="modalfunctions",
+        group="modal-operator.io",
+        version="v1alpha1",
+        kind="ModalFunction",
+        spec_model=ModalFunctionSpec,
+        status_model=ModalFunctionStatus,
+    )
+
     # Write CRDs to files
     with open(output_dir / "modaljobs.yaml", "w") as f:
         yaml.dump(modaljob_crd, f, default_flow_style=False, sort_keys=False)
@@ -131,9 +148,13 @@ def main():
     with open(output_dir / "modalendpoints.yaml", "w") as f:
         yaml.dump(modalendpoint_crd, f, default_flow_style=False, sort_keys=False)
 
+    with open(output_dir / "modalfunctions.yaml", "w") as f:
+        yaml.dump(modalfunction_crd, f, default_flow_style=False, sort_keys=False)
+
     print(f"Generated CRDs in {output_dir}")
     print("- modaljobs.yaml")
     print("- modalendpoints.yaml")
+    print("- modalfunctions.yaml")
 
 
 if __name__ == "__main__":

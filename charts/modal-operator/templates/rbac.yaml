@@ -21,10 +21,10 @@ rules:
   resources: ["customresourcedefinitions"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["modal-operator.io"]
-  resources: ["modaljobs", "modalendpoints"]
+  resources: ["modaljobs", "modalendpoints", "modalfunctions"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["modal-operator.io"]
-  resources: ["modaljobs/status", "modalendpoints/status"]
+  resources: ["modaljobs/status", "modalendpoints/status", "modalfunctions/status"]
   verbs: ["get", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

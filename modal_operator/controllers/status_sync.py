@@ -173,7 +173,8 @@ class StatusSyncController:
                                 "name": pod.spec.containers[0].name,
                                 "image": pod.spec.containers[0].image,
                                 "imageID": (
-                                    f"modal.com/{annotations.get('modal-operator.io/original-image', pod.spec.containers[0].image)}"
+                                    "modal.com/"
+                                    + annotations.get("modal-operator.io/original-image", pod.spec.containers[0].image)
                                 ),
                                 "ready": True,
                                 "restartCount": 0,

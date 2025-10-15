@@ -1,0 +1,55 @@
+---
+# Ollama LLM Serving via ModalFunction
+# This example shows how to run Ollama as a serverless function on Modal
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: ollama-llama2
+  namespace: default
+  labels:
+    app: ollama
+    model: llama2
+spec:
+  # Ollama official image
+  image: ollama/ollama:latest
+
+  # Handler function (for testing, we'll use a simple endpoint)
+  handler: "serve"
+
+  # Resource requirements
+  cpu: "4.0"
+  memory: "8Gi"
+  gpu: "T4:1"  # T4 is cost-effective for inference
+
+  # Configuration
+  timeout: 600  # 10 minutes for model loading and inference
+  concurrency: 5  # Handle 5 concurrent requests
+
+  # Environment variables for Ollama
+  env:
+    OLLAMA_HOST: "0.0.0.0"
+    OLLAMA_MODELS: "/root/.ollama/models"
+    OLLAMA_NUM_PARALLEL: "5"
+
+---
+# Test Pod that calls the Ollama function
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ollama-test-client
+  namespace: default
+spec:
+  containers:
+  - name: client
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "Waiting for Ollama function to be ready..."
+      sleep 10
+      echo "Testing Ollama function..."
+      # This would call the ModalFunction via the operator proxy
+      echo "ModalFunction should be accessible at: ollama-llama2.default.svc.cluster.local"
+      sleep infinity
+  restartPolicy: Never

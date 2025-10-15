@@ -146,7 +146,11 @@ MODAL_JOB_CRD = {
                                     "cpu": {"type": "string"},
                                     "memory": {"type": "string"},
                                     "gpu": {"type": "string"},
-                                    "env": {"type": "object"},
+                                    "env": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": True,
+                                        "additionalProperties": {"type": "string"},
+                                    },
                                     "timeout": {"type": "integer"},
                                     "retries": {"type": "integer"},
                                     "tunnel_enabled": {"type": "boolean"},
@@ -174,18 +178,16 @@ MODAL_JOB_CRD = {
                                                 "status": {"type": "string"},
                                                 "lastTransitionTime": {"type": "string"},
                                                 "reason": {"type": "string"},
-                                                "message": {"type": "string"}
-                                            }
-                                        }
+                                                "message": {"type": "string"},
+                                            },
+                                        },
                                     },
                                 },
                             },
                         },
                     }
                 },
-                "subresources": {
-                    "status": {}
-                },
+                "subresources": {"status": {}},
             }
         ],
         "scope": "Namespaced",
@@ -218,7 +220,11 @@ MODAL_ENDPOINT_CRD = {
                                     "gpu": {"type": "string"},
                                     "min_replicas": {"type": "integer"},
                                     "max_replicas": {"type": "integer"},
-                                    "env": {"type": "object"},
+                                    "env": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": True,
+                                        "additionalProperties": {"type": "string"},
+                                    },
                                 },
                                 "required": ["image", "handler"],
                             },
@@ -238,18 +244,16 @@ MODAL_ENDPOINT_CRD = {
                                                 "status": {"type": "string"},
                                                 "lastTransitionTime": {"type": "string"},
                                                 "reason": {"type": "string"},
-                                                "message": {"type": "string"}
-                                            }
-                                        }
+                                                "message": {"type": "string"},
+                                            },
+                                        },
                                     },
                                 },
                             },
                         },
                     }
                 },
-                "subresources": {
-                    "status": {}
-                },
+                "subresources": {"status": {}},
             }
         ],
         "scope": "Namespaced",
@@ -280,7 +284,11 @@ MODAL_FUNCTION_CRD = {
                                     "cpu": {"type": "string"},
                                     "memory": {"type": "string"},
                                     "gpu": {"type": "string"},
-                                    "env": {"type": "object"},
+                                    "env": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": True,
+                                        "additionalProperties": {"type": "string"},
+                                    },
                                     "timeout": {"type": "integer"},
                                     "concurrency": {"type": "integer"},
                                 },
@@ -304,18 +312,16 @@ MODAL_FUNCTION_CRD = {
                                                 "status": {"type": "string"},
                                                 "lastTransitionTime": {"type": "string"},
                                                 "reason": {"type": "string"},
-                                                "message": {"type": "string"}
-                                            }
-                                        }
+                                                "message": {"type": "string"},
+                                            },
+                                        },
                                     },
                                 },
                             },
                         },
                     }
                 },
-                "subresources": {
-                    "status": {}
-                },
+                "subresources": {"status": {}},
             }
         ],
         "scope": "Namespaced",

@@ -2,21 +2,23 @@
 # Force rebuild - change 1
 
 import asyncio
+import json
 import logging
 import os
+import traceback
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import kopf
 from kubernetes import client, config
 
+from modal_operator.controllers.modal_job_controller import ModalJobController
+from modal_operator.controllers.networking_controller import NetworkingController
 from modal_operator.controllers.status_sync import StatusSyncController
+from modal_operator.controllers.webhook_controller import ModalWebhookController
 from modal_operator.crds import ModalJobSpec
 from modal_operator.metrics import metrics
-from modal_operator.modal_client import ModalJobController
-from modal_operator.networking import NetworkingController
 from modal_operator.tunnel import TunnelManager
-from modal_operator.controllers.webhook_controller import ModalMutatingWebhook
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +27,14 @@ modal_controller: Optional[ModalJobController] = None
 tunnel_manager: Optional[TunnelManager] = None
 networking_controller: Optional[NetworkingController] = None
 status_sync_controller: Optional[StatusSyncController] = None
-mutating_webhook: Optional[ModalMutatingWebhook] = None
+mutating_webhook: Optional[ModalWebhookController] = None
+webhook_task: Optional[asyncio.Task] = None
 
 
 @kopf.on.startup()
 def configure(settings: kopf.OperatorSettings, **_):
     """Configure operator settings."""
-    global \
-        modal_controller, \
-        networking_controller, \
-        status_sync_controller, \
-        mutating_webhook
+    global modal_controller, networking_controller, status_sync_controller, mutating_webhook
 
     settings.posting.level = logging.INFO
     settings.watching.connect_timeout = 1 * 60
@@ -66,12 +65,12 @@ def configure(settings: kopf.OperatorSettings, **_):
     # Initialize controllers
     mock_mode = os.getenv("MODAL_MOCK", "false").lower() == "true"
     logger.info(f"Initializing Modal operator (mock_mode={mock_mode})")
-    
+
     try:
         modal_controller = ModalJobController(mock=mock_mode)
         networking_controller = NetworkingController(modal_controller)
         status_sync_controller = StatusSyncController(k8s_client)
-        mutating_webhook = ModalMutatingWebhook(k8s_client)
+        mutating_webhook = ModalWebhookController(k8s_client)
         logger.info("All controllers initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize controllers: {e}")
@@ -85,7 +84,7 @@ def configure(settings: kopf.OperatorSettings, **_):
     except Exception as e:
         logger.error(f"Failed to start metrics server: {e}")
         # Don't fail startup if metrics fail
-        
+
     logger.info(f"Modal vGPU Operator started successfully (mock_mode={mock_mode})")
 
 
@@ -100,7 +99,10 @@ async def create_modal_job(spec, name, namespace, logger, **kwargs):
         # Parse spec with validation
         try:
             job_spec = ModalJobSpec(**spec)
-            logger.debug(f"Parsed ModalJob spec: image={job_spec.image}, cpu={job_spec.cpu}, memory={job_spec.memory}, gpu={job_spec.gpu}")
+            logger.debug(
+                f"Parsed ModalJob spec: image={job_spec.image}, cpu={job_spec.cpu}, "
+                f"memory={job_spec.memory}, gpu={job_spec.gpu}"
+            )
         except Exception as parse_error:
             logger.error(f"Failed to parse ModalJob spec for {name}: {parse_error}")
             raise ValueError(f"Invalid ModalJob specification: {parse_error}")
@@ -129,7 +131,10 @@ async def create_modal_job(spec, name, namespace, logger, **kwargs):
         )
 
         creation_duration = (datetime.utcnow() - start_time).total_seconds()
-        logger.info(f"Modal job created successfully for {name}: app_id={modal_result['app_id']}, function_id={modal_result['function_id']}, duration={creation_duration:.2f}s")
+        logger.info(
+            f"Modal job created successfully for {name}: app_id={modal_result['app_id']}, "
+            f"function_id={modal_result['function_id']}, duration={creation_duration:.2f}s"
+        )
 
         # Record metrics
         gpu_type = job_spec.gpu.split(":")[0] if job_spec.gpu else None
@@ -140,10 +145,10 @@ async def create_modal_job(spec, name, namespace, logger, **kwargs):
         # Update status using direct patching
         try:
             custom_api = client.CustomObjectsApi()
-            
+
             # Create log URL for easy access
             log_url = f"https://modal.com/apps/{modal_result['app_id']}"
-            
+
             status_patch = {
                 "status": {
                     "phase": "Running",
@@ -164,17 +169,17 @@ async def create_modal_job(spec, name, namespace, logger, **kwargs):
                     ],
                 }
             }
-            
+
             custom_api.patch_namespaced_custom_object_status(
                 group="modal-operator.io",
                 version="v1alpha1",
                 namespace=namespace,
                 plural="modaljobs",
                 name=name,
-                body=status_patch
+                body=status_patch,
             )
             logger.info(f"Successfully updated status for ModalJob {name} to Running. Logs: {log_url}")
-            
+
         except Exception as status_error:
             logger.error(f"Failed to update status for ModalJob {name}: {status_error}")
             # Don't fail the whole operation if status update fails
@@ -206,22 +211,20 @@ async def create_modal_job(spec, name, namespace, logger, **kwargs):
                     ],
                 }
             }
-            
+
             custom_api.patch_namespaced_custom_object_status(
                 group="modal-operator.io",
                 version="v1alpha1",
                 namespace=namespace,
                 plural="modaljobs",
                 name=name,
-                body=status_patch
+                body=status_patch,
             )
             logger.info(f"Updated ModalJob {name} status to Failed")
         except Exception as status_error:
             logger.error(f"Failed to update error status for ModalJob {name}: {status_error}")
 
         return None
-
-
 
 
 @kopf.on.delete("modal-operator.io", "v1alpha1", "modaljobs")
@@ -258,11 +261,11 @@ async def update_modal_job(spec, name, namespace, status, logger, **kwargs):
 @kopf.on.create("modal-operator.io", "v1alpha1", "modalfunctions")
 async def create_modal_function(spec, name, namespace, **kwargs):
     """Handle ModalFunction creation."""
-    
+
     logger.info(f"Creating Modal function {name} in namespace {namespace}")
-    
+
     try:
-        result = await modal_client.create_function(
+        result = await modal_controller.create_function(
             name=name,
             image=spec["image"],
             handler=spec["handler"],
@@ -273,16 +276,47 @@ async def create_modal_function(spec, name, namespace, **kwargs):
             timeout=spec.get("timeout", 300),
             concurrency=spec.get("concurrency", 1),
         )
-        
+
+        # Create Kubernetes Service for the ModalFunction
+        if result["status"] == "deployed" and result.get("function_url"):
+            try:
+                from urllib.parse import urlparse
+
+                parsed_url = urlparse(result["function_url"])
+                external_hostname = parsed_url.netloc
+
+                k8s_core = client.CoreV1Api()
+
+                service = client.V1Service(
+                    metadata=client.V1ObjectMeta(
+                        name=name,
+                        namespace=namespace,
+                        labels={"modal-operator.io/function": name, "modal-operator.io/managed": "true"},
+                        annotations={"modal-operator.io/function-url": result["function_url"]},
+                    ),
+                    spec=client.V1ServiceSpec(
+                        type="ExternalName", external_name=external_hostname, ports=[client.V1ServicePort(port=443)]
+                    ),
+                )
+
+                k8s_core.create_namespaced_service(namespace=namespace, body=service)
+                logger.info(
+                    f"Created Kubernetes Service {name} in namespace {namespace} pointing to {external_hostname}"
+                )
+
+            except Exception as svc_error:
+                logger.warning(f"Failed to create Service for ModalFunction {name}: {svc_error}")
+                # Don't fail the whole operation if service creation fails
+
         status = {
             "phase": "Deployed" if result["status"] == "deployed" else "Failed",
             "modal_app_id": result.get("app_id"),
             "function_url": result.get("function_url"),
             "message": result.get("error", "Function deployed successfully"),
         }
-        
+
         return status
-        
+
     except Exception as e:
         logger.error(f"Failed to create Modal function {name}: {e}")
         return {"phase": "Failed", "message": str(e)}
@@ -291,8 +325,21 @@ async def create_modal_function(spec, name, namespace, **kwargs):
 @kopf.on.delete("modal-operator.io", "v1alpha1", "modalfunctions")
 async def delete_modal_function(spec, name, namespace, **kwargs):
     """Handle ModalFunction deletion."""
-    
+
     logger.info(f"Deleting Modal function {name} in namespace {namespace}")
+
+    # Delete associated Kubernetes Service
+    try:
+        k8s_core = client.CoreV1Api()
+        k8s_core.delete_namespaced_service(name=name, namespace=namespace)
+        logger.info(f"Deleted Kubernetes Service {name} in namespace {namespace}")
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            logger.warning(f"Failed to delete Service for ModalFunction {name}: {e}")
+        # Service doesn't exist, which is fine
+    except Exception as e:
+        logger.warning(f"Error deleting Service for ModalFunction {name}: {e}")
+
     return {"message": "Function deleted"}
 
 
@@ -350,20 +397,22 @@ async def create_modal_endpoint(spec, name, namespace, logger, **kwargs):
 async def cleanup_handler(logger, **kwargs):
     """Handle operator shutdown gracefully."""
     logger.info("Modal operator shutting down...")
-    
+
     try:
         # Record shutdown metrics
         metrics.record_operator_shutdown()
         logger.info("Shutdown metrics recorded")
     except Exception as e:
         logger.error(f"Failed to record shutdown metrics: {e}")
-    
+
     logger.info("Modal operator shutdown complete")
 
 
 @kopf.on.startup()
 async def startup_handler(logger, **kwargs):
     """Startup handler to verify operator is loading correctly."""
+    global webhook_task
+
     logger.info("Modal vGPU Operator handlers registered")
 
     # Start webhook server in background
@@ -371,12 +420,13 @@ async def startup_handler(logger, **kwargs):
     logger.info(f"Webhook enabled: {webhook_enabled}")
     if webhook_enabled:
         logger.info("Starting webhook server...")
-        asyncio.create_task(start_webhook_server_async())
+        webhook_task = asyncio.create_task(start_webhook_server_async())
 
 
 async def start_webhook_server_async():
     """Start the mutating admission webhook server asynchronously."""
     import ssl
+
     from aiohttp import web
 
     async def webhook_handler(request):
@@ -423,6 +473,7 @@ async def start_webhook_server_async():
     except Exception as e:
         logger.error(f"Failed to start webhook server: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
 
 
@@ -433,6 +484,10 @@ async def pod_created(body, name, namespace, logger, **kwargs):
         # Check if pod should be offloaded to Modal
         annotations = body.get("metadata", {}).get("annotations", {})
         containers = body.get("spec", {}).get("containers", [])
+
+        # Skip pods that were already mutated by the webhook
+        if annotations.get("modal-operator.io/mutated") == "true":
+            return
 
         should_offload = (
             annotations.get("modal-operator.io/offload") == "true"
@@ -469,6 +524,77 @@ async def pod_created(body, name, namespace, logger, **kwargs):
 
     except Exception as e:
         logger.error(f"Error processing pod {name}: {e}")
+
+
+@kopf.on.create("", "v1", "pods", annotations={"modal-operator.io/mutated": "true"})
+async def mutated_pod_created(body, name, namespace, logger, **kwargs):
+    """Handle webhook-mutated pods - create corresponding ModalJob."""
+    try:
+        annotations = body.get("metadata", {}).get("annotations", {})
+
+        # Check if ModalJob already exists
+        custom_api = client.CustomObjectsApi()
+        modal_job_name = f"{name}-modal"
+
+        try:
+            custom_api.get_namespaced_custom_object(
+                group="modal-operator.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="modaljobs",
+                name=modal_job_name
+            )
+            logger.info(f"ModalJob {modal_job_name} already exists, skipping creation")
+            return
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+
+        logger.info(f"Creating ModalJob for webhook-mutated pod {name}")
+
+        # Convert pod to ModalJob using original container specs from environment variables
+        original_images = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[2].get("value", "[]"))
+        original_names = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[3].get("value", "[]"))
+        original_commands = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[4].get("value", "[]"))
+        original_args = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[5].get("value", "[]"))
+        original_env = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[6].get("value", "{}"))
+
+        # Build ModalJob spec from original container specs
+        modal_job_spec = {
+            "image": original_images[0] if original_images else "python:3.11-slim",
+            "command": original_commands[0] if original_commands else None,
+            "args": original_args[0] if original_args else None,
+            "env": original_env,
+            "cpu": annotations.get("modal-operator.io/cpu", "1.0"),
+            "memory": annotations.get("modal-operator.io/memory", "1Gi"),
+            "gpu": annotations.get("modal-operator.io/gpu"),
+            "timeout": int(annotations.get("modal-operator.io/timeout", "600")),
+        }
+
+        # Remove None values
+        modal_job_spec = {k: v for k, v in modal_job_spec.items() if v is not None}
+
+        # Create ModalJob CRD
+        modal_job = {
+            "apiVersion": "modal-operator.io/v1alpha1",
+            "kind": "ModalJob",
+            "metadata": {
+                "name": modal_job_name,
+                "namespace": namespace,
+                "labels": {"modal-operator.io/original-pod": name},
+            },
+            "spec": modal_job_spec,
+        }
+
+        custom_api.create_namespaced_custom_object(
+            group="modal-operator.io", version="v1alpha1", namespace=namespace, plural="modaljobs", body=modal_job
+        )
+
+        logger.info(f"Created ModalJob {modal_job_name} for webhook-mutated pod {name}")
+
+    except Exception as e:
+        logger.error(f"Error creating ModalJob for mutated pod {name}: {e}")
+        logger.error(traceback.format_exc())
         raise
 
 
@@ -574,25 +700,26 @@ def health_status(**kwargs):
             return {"status": "unhealthy", "reason": "modal_controller not initialized"}
         if not mutating_webhook:
             return {"status": "unhealthy", "reason": "webhook not initialized"}
-        
+
         # Check Modal API connectivity (if not in mock mode)
         mock_mode = os.getenv("MODAL_MOCK", "false").lower() == "true"
         if not mock_mode:
             try:
                 # Simple connectivity check - this will be fast
                 import modal
+
                 modal.is_local()  # Quick local check
             except Exception as e:
                 return {"status": "degraded", "reason": f"modal_api_issue: {str(e)[:100]}"}
-        
+
         return {
-            "status": "healthy", 
+            "status": "healthy",
             "mock_mode": mock_mode,
             "components": {
                 "modal_controller": "ready",
                 "webhook": "ready",
-                "status_sync": "ready" if status_sync_controller else "not_initialized"
-            }
+                "status_sync": "ready" if status_sync_controller else "not_initialized",
+            },
         }
     except Exception as e:
         return {"status": "unhealthy", "reason": f"health_check_failed: {str(e)[:100]}"}

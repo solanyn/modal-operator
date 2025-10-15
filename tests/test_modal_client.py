@@ -2,7 +2,7 @@
 
 import pytest
 
-from modal_operator.modal_client import ModalJobController
+from modal_operator.controllers.modal_job_controller import ModalJobController
 
 
 class TestModalJobController:

@@ -1,7 +1,7 @@
 # Tiltfile for Modal vGPU Operator development
 
 # Tilt configuration
-update_settings(suppress_unused_image_warnings=["modal-operator/modal-operator-proxy"])
+# update_settings(suppress_unused_image_warnings=[])
 
 # Load extensions
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
@@ -11,8 +11,10 @@ allow_k8s_contexts('kind-tilt-dev')
 
 # Configuration
 config.define_string("namespace", args=False, usage="Kubernetes namespace")
+config.define_bool("kubeflow", args=True, usage="Install Kubeflow (default: false)")
 cfg = config.parse()
 namespace = cfg.get("namespace", "modal-system")
+enable_kubeflow = cfg.get("kubeflow", False)
 
 # Set Docker build options for space efficiency
 docker_prune_settings(num_builds=2, max_age_mins=60)
@@ -45,21 +47,22 @@ local_resource(
     labels=['monitoring']
 )
 
-# Clone and install Kubeflow
-local_resource(
-    'kubeflow-manifests',
-    cmd='rm -rf .tmp/kubeflow-manifests && mkdir -p .tmp && git clone --depth 1 --branch v1.10.2 https://github.com/kubeflow/manifests.git .tmp/kubeflow-manifests',
-    labels=['setup']
-)
+# Clone and install Kubeflow (optional - enable with: tilt up -- --kubeflow)
+if enable_kubeflow:
+    local_resource(
+        'kubeflow-manifests',
+        cmd='rm -rf .tmp/kubeflow-manifests && mkdir -p .tmp && git clone --depth 1 --branch v1.10.2 https://github.com/kubeflow/manifests.git .tmp/kubeflow-manifests',
+        labels=['setup']
+    )
 
-local_resource(
-    'kubeflow-install',
-    cmd='kubectl apply --server-side --validate=false --force-conflicts -k .tmp/kubeflow-manifests/example || sleep 30',
-    deps=['.tmp/kubeflow-manifests'],
-    resource_deps=['kubeflow-manifests'],
-    auto_init=True,
-    labels=['setup']
-)
+    local_resource(
+        'kubeflow-install',
+        cmd='kubectl apply --server-side --validate=false --force-conflicts -k .tmp/kubeflow-manifests/example || sleep 30',
+        deps=['.tmp/kubeflow-manifests'],
+        resource_deps=['kubeflow-manifests'],
+        auto_init=True,
+        labels=['setup']
+    )
 
 # Generate and apply CRDs
 local_resource(
@@ -71,19 +74,26 @@ local_resource(
 
 k8s_yaml(['charts/modal-operator/crds/modaljobs.yaml', 'charts/modal-operator/crds/modalendpoints.yaml', 'charts/modal-operator/crds/modalfunctions.yaml'])
 
-# Wait for CRDs to be ready
+# Wait for CRDs to be ready (with retry for timing issues)
 local_resource(
     'wait-for-crds',
-    cmd='kubectl wait --for condition=established --timeout=60s crd/modaljobs.modal-operator.io crd/modalendpoints.modal-operator.io crd/modalfunctions.modal-operator.io',
+    cmd='sleep 2 && kubectl wait --for condition=established --timeout=60s crd/modaljobs.modal-operator.io crd/modalendpoints.modal-operator.io crd/modalfunctions.modal-operator.io',
     resource_deps=['generate-crds'],
     labels=['setup']
 )
 
-# Build modal operator proxy for cluster tunneling
+# Build logger for log streaming from Modal jobs
 docker_build(
-    'modal-operator/modal-operator-proxy',
+    'modal-operator/logger',
+    './docker/modal-logger',
+    dockerfile='./docker/modal-logger/Dockerfile'
+)
+
+# Build proxy for sidecar injection (distroless)
+docker_build(
+    'modal-operator/proxy',
     './tunnel',
-    dockerfile='./tunnel/Dockerfile'
+    dockerfile='./tunnel/Dockerfile.distroless'
 )
 
 # Build operator image
@@ -137,7 +147,10 @@ print("📋 Available resources:")
 print("  - prometheus-operator: Prometheus Operator for ServiceMonitor CRDs")
 print("  - prometheus: Metrics collection server")
 print("  - grafana-helm: Grafana dashboards (admin/admin)")
-print("  - kubeflow-install: Complete Kubeflow v1.10.2 platform")
+if enable_kubeflow:
+    print("  - kubeflow-install: Complete Kubeflow v1.10.2 platform")
+else:
+    print("  - kubeflow: DISABLED (enable with: tilt up -- --kubeflow)")
 print("  - modal-operator: Main operator deployment")
 print("  - modal-container-example: Example GPU pod for testing")
 print("🔧 Ports: 8080 (app), 8081 (metrics)")

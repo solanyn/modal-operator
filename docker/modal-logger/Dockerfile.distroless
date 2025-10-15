@@ -1,38 +1,37 @@
-# Multi-stage build for minimal logger container
+# Multi-stage build for minimal distroless logger container
 FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install modal CLI in a virtual environment for isolation
+# Install dependencies in a virtual environment
 RUN uv venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Install modal CLI
 RUN uv pip install modal
 
 # Download kubectl binary
-RUN apt-get update && apt-get install -y curl ca-certificates && \
+RUN apt-get update && apt-get install -y curl && \
     curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" && \
-    chmod +x kubectl && \
-    rm -rf /var/lib/apt/lists/*
+    chmod +x kubectl
 
-# Runtime stage - minimal Python image
-FROM python:3.11-slim
+# Runtime stage - distroless Python image
+FROM gcr.io/distroless/python3-debian12:nonroot
 
-WORKDIR /app
-
-# Copy virtual environment and kubectl from builder
+# Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
+
+# Copy kubectl binary
 COPY --from=builder /app/kubectl /usr/local/bin/kubectl
 
 # Copy log streaming script
-COPY stream-logs.sh /usr/local/bin/stream-logs.sh
-RUN chmod +x /usr/local/bin/stream-logs.sh
+COPY --chown=nonroot:nonroot stream-logs.sh /usr/local/bin/stream-logs.sh
 
 # Set up environment
 ENV PATH="/app/.venv/bin:/usr/local/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
-# Run as non-root user
-RUN useradd -r -u 65532 -g 65534 nonroot
+# Use nonroot user (uid 65532)
 USER nonroot
 
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/stream-logs.sh"]

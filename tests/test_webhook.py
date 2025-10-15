@@ -5,16 +5,16 @@ from unittest.mock import Mock, patch
 
 from kubernetes import client
 
-from modal_operator.webhook import ModalMutatingWebhook
+from modal_operator.controllers.webhook_controller import ModalWebhookController
 
 
-class TestModalMutatingWebhook:
-    """Test cases for ModalMutatingWebhook."""
+class TestModalWebhookController:
+    """Test cases for ModalWebhookController."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.k8s_client = Mock(spec=client.CoreV1Api)
-        self.webhook = ModalMutatingWebhook(self.k8s_client)
+        self.webhook = ModalWebhookController(self.k8s_client)
 
     def test_mutate_pod_with_offload_annotation(self):
         """Test pod mutation with modal-operator.io/offload annotation."""

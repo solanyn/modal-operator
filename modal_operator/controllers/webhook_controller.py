@@ -14,8 +14,8 @@ from kubernetes import client
 logger = logging.getLogger(__name__)
 
 
-class ModalMutatingWebhook:
-    """Mutating admission webhook for Modal pod interception."""
+class ModalWebhookController:
+    """Mutating admission webhook controller for Modal pod interception."""
 
     def __init__(self, k8s_client: client.CoreV1Api):
         self.k8s_client = k8s_client
@@ -39,14 +39,17 @@ class ModalMutatingWebhook:
             pod_name = metadata_dict.get("name", "unknown")
             pod_namespace = metadata_dict.get("namespace", "unknown")
             pod_annotations = metadata_dict.get("annotations", {})
-            
-            logger.info(f"Webhook processing pod: {pod_name} in namespace: {pod_namespace}, annotations: {list(pod_annotations.keys())}")
+
+            logger.info(
+                f"Webhook processing pod: {pod_name} in namespace: {pod_namespace}, "
+                f"annotations: {list(pod_annotations.keys())}"
+            )
 
             # With objectSelector, we only get pods that need mutation
             logger.info(f"Mutating pod {pod_name} for Modal execution")
 
             # Generate mutation patches
-            patches = self._generate_mutation_patches(pod, "", None)
+            patches = self._generate_mutation_patches(pod_dict, "", None)
 
             return self._mutate_response(patches, "Mutated pod for Modal execution", uid)
 
@@ -114,12 +117,12 @@ class ModalMutatingWebhook:
         return config_map_name, secret_name
 
     def _generate_mutation_patches(
-        self, pod: client.V1Pod, config_map_name: str, secret_name: Optional[str]
+        self, pod_dict: Dict[str, Any], config_map_name: str, secret_name: Optional[str]
     ) -> List[Dict[str, Any]]:
         """Generate JSON patches to mutate the pod.
 
         Args:
-            pod: Original pod object
+            pod_dict: Original pod dictionary from admission request
             config_map_name: Name of ConfigMap with pod spec
             secret_name: Name of Secret with env vars (optional)
 
@@ -129,34 +132,35 @@ class ModalMutatingWebhook:
         patches = []
 
         # Validate pod structure
-        if not pod.spec or not pod.spec.containers or len(pod.spec.containers) == 0:
+        pod_spec = pod_dict.get("spec", {})
+        containers = pod_spec.get("containers", [])
+        if not containers or len(containers) == 0:
             raise ValueError("Pod must have at least one container")
 
-        original_container = pod.spec.containers[0]
+        original_container = containers[0]
 
         # Validate container has required fields
-        if not hasattr(original_container, 'name') or not original_container.name:
+        if not original_container.get("name"):
             raise ValueError(f"Container must have a name, got: {original_container}")
-        if not hasattr(original_container, 'image') or not original_container.image:
+        if not original_container.get("image"):
             raise ValueError(f"Container must have an image, got: {original_container}")
 
         # Replace all containers with Modal log streaming
-        pod_name = pod.metadata.name
-        
+        metadata_dict = pod_dict.get("metadata", {})
+        pod_name = metadata_dict.get("name", "unknown")
+
         # Get all original containers for environment variables
-        original_containers = pod.spec.containers or []
-        if not original_containers:
-            raise ValueError("Pod must have at least one container")
-            
+        original_containers = containers
+
         # Create environment variables from all containers
-        all_images = [c.image for c in original_containers]
-        all_names = [c.name for c in original_containers]
-        all_commands = [c.command or [] for c in original_containers] 
-        all_args = [c.args or [] for c in original_containers]
+        all_images = [c.get("image") for c in original_containers]
+        all_names = [c.get("name") for c in original_containers]
+        all_commands = [c.get("command", []) for c in original_containers]
+        all_args = [c.get("args", []) for c in original_containers]
         all_env = {}
         for c in original_containers:
-            for env in (c.env or []):
-                all_env[env.name] = env.value
+            for env in c.get("env", []):
+                all_env[env.get("name")] = env.get("value")
 
         # Replace entire containers array with Modal logger + proxy sidecar
         container_patch = {
@@ -164,9 +168,9 @@ class ModalMutatingWebhook:
             "path": "/spec/containers",
             "value": [
                 {
-                    "name": original_containers[0].name,
-                    "image": "modal-operator/modal-logger:latest",
-                    "imagePullPolicy": "Never",
+                    "name": original_containers[0].get("name", "logger"),
+                    "image": "modal-operator/logger:latest",
+                    "imagePullPolicy": "IfNotPresent",
                     "env": [
                         {"name": "POD_NAME", "value": pod_name},
                         {"name": "MODAL_EXECUTION", "value": "true"},
@@ -181,69 +185,58 @@ class ModalMutatingWebhook:
                     ],
                     "ports": [{"containerPort": 8000, "name": "placeholder", "protocol": "TCP"}],
                     "resources": {},
-                    "volumeMounts": [{
-                        "name": "modal-secret",
-                        "mountPath": "/etc/modal-secret",
-                        "readOnly": True
-                    }]
+                    "volumeMounts": [{"name": "modal-secret", "mountPath": "/etc/modal-secret", "readOnly": True}],
                 },
                 {
-                    "name": "modal-operator-proxy",
-                    "image": "modal-operator/tunnel:latest",
-                    "imagePullPolicy": "Never",
+                    "name": "proxy",
+                    "image": "modal-operator/proxy:latest",
+                    "imagePullPolicy": "IfNotPresent",
                     "ports": [{"containerPort": 1080, "name": "proxy", "protocol": "TCP"}],
-                    "env": [
-                        {"name": "PROXY_PORT", "value": "1080"},
-                        {"name": "POD_NAME", "value": pod_name}
-                    ],
+                    "env": [{"name": "PROXY_PORT", "value": "1080"}, {"name": "POD_NAME", "value": pod_name}],
                     "resources": {
                         "requests": {"memory": "64Mi", "cpu": "50m"},
-                        "limits": {"memory": "128Mi", "cpu": "100m"}
+                        "limits": {"memory": "128Mi", "cpu": "100m"},
                     },
-                    "volumeMounts": [{
-                        "name": "modal-secret",
-                        "mountPath": "/etc/modal-secret",
-                        "readOnly": True
-                    }]
-                }
-            ]
+                    "volumeMounts": [{"name": "modal-secret", "mountPath": "/etc/modal-secret", "readOnly": True}],
+                },
+            ],
         }
         patches.append(container_patch)
 
         # Add pod-level networking configuration
         pod_spec = pod_dict.get("spec", {})
-        
+
         # Preserve original networking configuration in annotations
         networking_config = {
             "hostNetwork": pod_spec.get("hostNetwork", False),
             "dnsPolicy": pod_spec.get("dnsPolicy", "ClusterFirst"),
             "subdomain": pod_spec.get("subdomain"),
             "hostname": pod_spec.get("hostname"),
-            "dnsConfig": pod_spec.get("dnsConfig")
+            "dnsConfig": pod_spec.get("dnsConfig"),
         }
-        
+
         # Store original networking config for Modal execution
         networking_patch = {
             "op": "add",
             "path": "/metadata/annotations/modal-operator.io~1original-networking",
-            "value": json.dumps(networking_config)
+            "value": json.dumps(networking_config),
         }
         patches.append(networking_patch)
-        
+
         # Override pod networking for placeholder pod
         if pod_spec.get("hostNetwork"):
             host_network_patch = {
-                "op": "replace", 
+                "op": "replace",
                 "path": "/spec/hostNetwork",
-                "value": False  # Disable host networking for placeholder
+                "value": False,  # Disable host networking for placeholder
             }
             patches.append(host_network_patch)
-            
+
         # Ensure proper DNS for service discovery
         dns_policy_patch = {
             "op": "replace" if "dnsPolicy" in pod_spec else "add",
-            "path": "/spec/dnsPolicy", 
-            "value": "ClusterFirst"
+            "path": "/spec/dnsPolicy",
+            "value": "ClusterFirst",
         }
         patches.append(dns_policy_patch)
 
@@ -255,9 +248,9 @@ class ModalMutatingWebhook:
                 "name": "modal-secret",
                 "secret": {
                     "secretName": "modal-token",
-                    "optional": False  # Required - operator needs this too
-                }
-            }
+                    "optional": False,  # Required - operator needs this too
+                },
+            },
         }
         patches.append(volume_patch)
 
@@ -274,18 +267,18 @@ class ModalMutatingWebhook:
         patches.append(tunnel_service_patch)
 
         # Add tunnel pod label for service selector (ensure labels exist first)
-        if not hasattr(pod.metadata, "labels") or pod.metadata.labels is None:
+        if not metadata_dict.get("labels"):
             labels_patch = {
                 "op": "add",
                 "path": "/metadata/labels",
-                "value": {"modal-operator.io/tunnel-pod": pod.metadata.name},
+                "value": {"modal-operator.io/tunnel-pod": pod_name},
             }
             patches.append(labels_patch)
         else:
             tunnel_label_patch = {
                 "op": "add",
                 "path": "/metadata/labels/modal-operator.io~1tunnel-pod",
-                "value": pod.metadata.name,
+                "value": pod_name,
             }
             patches.append(tunnel_label_patch)
 
@@ -339,18 +332,18 @@ class ModalMutatingWebhook:
 
     def _should_mutate_pod(self, pod: client.V1Pod) -> bool:
         """Check if a pod should be mutated for Modal execution."""
-        
+
         if not pod.metadata or not pod.metadata.annotations:
             return False
 
         annotations = pod.metadata.annotations
-        
+
         # Only check for workload-type annotation
         return annotations.get("modal-operator.io/workload-type") in ["job", "function"]
 
     def _get_modal_type(self, pod: client.V1Pod) -> str:
         """Get Modal workload type from annotation."""
-        
+
         annotations = pod.metadata.annotations or {}
         return annotations.get("modal-operator.io/workload-type", "job")  # Default to job
 

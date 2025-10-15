@@ -2,8 +2,8 @@
 
 import pytest
 
-from modal_operator.modal_client import ModalJobController
-from modal_operator.networking import ClusterCoordinator, NetworkingConfig, NetworkingController
+from modal_operator.controllers.modal_job_controller import ModalJobController
+from modal_operator.controllers.networking_controller import ClusterCoordinator, NetworkingConfig, NetworkingController
 
 
 class TestNetworkingConfig:

@@ -216,13 +216,13 @@ class ModalJobController:
                     calls.append(call)
 
                 return {
-                "app_id": app.app_id,
-                "function_id": calls[0].object_id,  # Primary function ID
-                "status": "running",
-                "replicas": replicas,
-                "enable_i6pn": enable_i6pn,
-                "distributed_calls": [call.object_id for call in calls],
-            }
+                    "app_id": app.app_id,
+                    "function_id": calls[0].object_id,  # Primary function ID
+                    "status": "running",
+                    "replicas": replicas,
+                    "enable_i6pn": enable_i6pn,
+                    "distributed_calls": [call.object_id for call in calls],
+                }
 
     async def get_job_status(self, app_id: str, function_id: str) -> Dict[str, Any]:
         """Get Modal job status."""
@@ -289,12 +289,12 @@ class ModalJobController:
                 module_name, func_name = handler.rsplit(".", 1)
                 module = importlib.import_module(module_name)
                 func = getattr(module, func_name)
-                
+
                 return func(*args, **kwargs)
 
             with app.run():
                 function_url = f"https://{app.app_id}.modal.run"
-                
+
                 return {
                     "app_id": app.app_id,
                     "function_url": function_url,

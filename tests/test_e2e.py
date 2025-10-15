@@ -5,9 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from kubernetes import client
 
-from modal_operator.mirror_pod import MirrorPodController
-from modal_operator.modal_client import ModalJobController
-from modal_operator.networking import NetworkingController
+from modal_operator.controllers.modal_job_controller import ModalJobController
+from modal_operator.controllers.networking_controller import NetworkingController
 from modal_operator.operator import _pod_to_modal_job_spec
 
 
@@ -30,16 +29,18 @@ class TestE2E:
         controller.get_job_status = AsyncMock(return_value={"status": "completed", "exit_code": 0})
         return controller
 
-    @pytest.fixture
-    def mirror_controller(self, k8s_client):
-        """Mock Mirror Pod controller."""
-        return MirrorPodController(k8s_client)
+    # Mirror Pod controller removed in Phase 8 - using webhook mutation instead
+    # @pytest.fixture
+    # def mirror_controller(self, k8s_client):
+    #     """Mock Mirror Pod controller."""
+    #     return MirrorPodController(k8s_client)
 
     @pytest.fixture
     def networking_controller(self, modal_controller):
         """Mock Networking controller."""
         return NetworkingController(modal_controller)
 
+    @pytest.mark.skip(reason="Mirror Pod controller removed in Phase 8 - using webhook mutation instead")
     @pytest.mark.asyncio
     async def test_gpu_pod_to_modal_job_workflow(self, modal_controller, mirror_controller, networking_controller):
         """Test complete workflow: GPU pod -> Modal job -> Mirror pod."""

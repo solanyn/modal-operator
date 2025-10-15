@@ -85,7 +85,7 @@ kubectl create secret generic modal-token \
 
 2. **Deploy with Helm:**
 ```bash
-helm upgrade --install modal-vgpu-operator ./charts/modal-vgpu-operator \
+helm upgrade --install modal-operator ./charts/modal-operator \
   --namespace modal-system \
   --create-namespace \
   --set testing.mockModal=false
@@ -273,7 +273,7 @@ The operator exposes Prometheus metrics on port 8081:
 
 Access metrics:
 ```bash
-kubectl port-forward svc/modal-vgpu-operator 8081:8081 -n modal-system
+kubectl port-forward svc/modal-operator 8081:8081 -n modal-system
 curl http://localhost:8081/metrics
 ```
 
@@ -341,13 +341,13 @@ In mock mode:
 
 ```bash
 # Check operator logs
-kubectl logs -n modal-system deployment/modal-vgpu-operator -f
+kubectl logs -n modal-system deployment/modal-operator -f
 
 # Check pod events
 kubectl describe pod <pod-name>
 
 # Verify RBAC
-kubectl auth can-i update pods/status --as=system:serviceaccount:modal-system:modal-vgpu-operator
+kubectl auth can-i update pods/status --as=system:serviceaccount:modal-system:modal-operator
 ```
 
 ## Contributing

@@ -2,7 +2,7 @@
 
 import pytest
 
-from modal_operator.modal_client import ModalJobController
+from modal_operator.controllers.modal_job_controller import ModalJobController
 from modal_operator.operator import _has_gpu_request, _pod_to_modal_job_spec
 
 
