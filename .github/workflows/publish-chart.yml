@@ -1,0 +1,86 @@
+name: Publish Helm Chart
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+      - '.github/workflows/publish-chart.yml'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Set chart version
+        id: chart_version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="0.0.0-${GITHUB_SHA::8}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Chart version: $VERSION"
+
+      - name: Update chart version
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.chart_version.outputs.VERSION }}/" charts/modal-operator/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: ${{ steps.chart_version.outputs.VERSION }}/" charts/modal-operator/Chart.yaml
+
+      - name: Lint Helm chart
+        run: |
+          helm lint charts/modal-operator
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/modal-operator -d .helm-charts
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart to OCI registry
+        run: |
+          CHART_FILE=$(ls .helm-charts/*.tgz)
+          helm push "${CHART_FILE}" oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+
+      - name: Generate chart documentation
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "# Modal Operator Helm Chart" > charts/README.md
+          echo "" >> charts/README.md
+          echo "## Installation" >> charts/README.md
+          echo "\`\`\`bash" >> charts/README.md
+          echo "helm install modal-operator oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts/modal-operator --version ${{ steps.chart_version.outputs.VERSION }}" >> charts/README.md
+          echo "\`\`\`" >> charts/README.md
+          echo "" >> charts/README.md
+          echo "## Configuration" >> charts/README.md
+          echo "See [values.yaml](modal-operator/values.yaml) for configuration options." >> charts/README.md
+
+      - name: Upload chart as artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: .helm-charts/*.tgz
+          retention-days: 30

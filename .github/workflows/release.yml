@@ -5,52 +5,66 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  release:
+  create-release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository }}
-        tags: |
-          type=ref,event=tag
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-    
-    - name: Build and push image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    
-    - name: Package Helm chart
-      run: |
-        helm package charts/modal-vgpu-operator
-    
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          modal-vgpu-operator-*.tgz
-        generate_release_notes: true
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # Generate changelog
+          if [ -n "$PREV_TAG" ]; then
+            echo "## What's Changed" > release_notes.md
+            git log ${PREV_TAG}..HEAD --pretty=format:"* %s (%h)" >> release_notes.md
+          else
+            echo "## Initial Release" > release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "## Installation" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### Helm Chart (OCI)" >> release_notes.md
+          echo "\`\`\`bash" >> release_notes.md
+          echo "helm install modal-operator \\" >> release_notes.md
+          echo "  oci://ghcr.io/${{ github.repository_owner }}/charts/modal-operator \\" >> release_notes.md
+          echo "  --version ${GITHUB_REF_NAME#v} \\" >> release_notes.md
+          echo "  --namespace modal-system --create-namespace" >> release_notes.md
+          echo "\`\`\`" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### Container Image" >> release_notes.md
+          echo "\`\`\`bash" >> release_notes.md
+          echo "docker pull ghcr.io/${{ github.repository }}:${GITHUB_REF_NAME}" >> release_notes.md
+          echo "\`\`\`" >> release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
+
+  build-and-push-image:
+    name: Build and Push Release Image
+    needs: create-release
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+
+  publish-helm-chart:
+    name: Publish Helm Chart
+    needs: create-release
+    uses: ./.github/workflows/publish-chart.yml
+    secrets: inherit
