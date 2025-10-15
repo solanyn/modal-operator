@@ -442,6 +442,25 @@ async def create_modal_endpoint(spec, name, namespace, logger, **kwargs):
         return None
 
 
+@kopf.on.delete("modal-operator.io", "v1alpha1", "modalendpoints")
+async def delete_modal_endpoint(spec, name, namespace, status, logger, **kwargs):
+    """Handle ModalEndpoint deletion - stop the deployed Modal app."""
+    logger.info(f"Deleting ModalEndpoint {name} in namespace {namespace}")
+
+    try:
+        # Stop Modal app if it exists
+        if status and status.get("modal_app_id"):
+            app_id = status["modal_app_id"]
+            logger.info(f"Stopping Modal app {app_id} for endpoint {name}")
+            await modal_controller.delete_app(app_id)
+            logger.info(f"Successfully stopped Modal app {app_id}")
+
+        logger.info(f"Successfully deleted ModalEndpoint {name}")
+
+    except Exception as e:
+        logger.error(f"Failed to delete ModalEndpoint {name}: {e}")
+
+
 # Pod interception (existing functionality)
 @kopf.on.cleanup()
 async def cleanup_handler(logger, **kwargs):

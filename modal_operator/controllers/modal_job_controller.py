@@ -418,16 +418,26 @@ class ModalJobController:
             raise
 
     async def delete_app(self, app_id: str) -> bool:
-        """Delete a Modal app."""
+        """Delete/stop a Modal app."""
 
         if self.mock:
             logger.info(f"Mock deleted app {app_id}")
             return True
 
         try:
-            # TODO: Implement app deletion via Modal API
-            logger.info(f"Deleted Modal app {app_id}")
+            from modal_proto import api_pb2
+
+            # Get Modal client
+            client = modal.Client.from_env()
+
+            # Stop the app using Modal's AppStop API
+            stop_request = api_pb2.AppStopRequest(
+                app_id=app_id, source=api_pb2.APP_STOP_SOURCE_CLI
+            )
+            await client.stub.AppStop(stop_request)
+
+            logger.info(f"Successfully stopped Modal app {app_id}")
             return True
         except Exception as e:
-            logger.error(f"Failed to delete app {app_id}: {e}")
+            logger.error(f"Failed to stop Modal app {app_id}: {e}")
             return False

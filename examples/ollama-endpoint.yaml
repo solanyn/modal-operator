@@ -1,0 +1,120 @@
+---
+# Ollama LLM Serving via Pod -> ModalEndpoint
+# The webhook will intercept this pod and create a ModalEndpoint
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ollama-llama2
+  namespace: default
+  annotations:
+    modal-operator.io/offload: "true"
+    modal-operator.io/gpu: "T4:1"  # T4 is cost-effective for inference
+  labels:
+    app: ollama
+    model: llama2
+    modal-operator.io/workload-type: "function"  # Create ModalEndpoint
+spec:
+  containers:
+  - name: ollama
+    image: ollama/ollama:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      # Start Ollama server and pull model
+      echo "Starting Ollama server..."
+      ollama serve &
+      OLLAMA_PID=$!
+
+      # Wait for Ollama to be ready
+      echo "Waiting for Ollama to start..."
+      sleep 5
+
+      # Pull the model
+      echo "Pulling llama2 model..."
+      ollama pull llama2
+
+      # Keep server running
+      echo "Ollama server ready with llama2 model!"
+      wait $OLLAMA_PID
+    env:
+    - name: OLLAMA_HOST
+      value: "0.0.0.0"
+    - name: OLLAMA_MODELS
+      value: "/root/.ollama/models"
+    - name: OLLAMA_NUM_PARALLEL
+      value: "5"
+    ports:
+    - containerPort: 11434
+      name: ollama
+    resources:
+      requests:
+        memory: "8Gi"
+        cpu: "4"
+
+---
+# Kubernetes Service for Ollama
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-llama2
+  namespace: default
+  labels:
+    app: ollama
+    model: llama2
+spec:
+  selector:
+    app: ollama
+    model: llama2
+  ports:
+  - port: 11434
+    targetPort: 11434
+    protocol: TCP
+    name: ollama
+  type: ClusterIP
+
+---
+# Test client to query Ollama
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ollama-test-client
+  namespace: default
+spec:
+  containers:
+  - name: client
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "===== Ollama on Modal Test ====="
+      echo "Waiting for Ollama to be ready..."
+      sleep 30
+
+      echo ""
+      echo "Testing Ollama API..."
+      echo "Target: ollama-llama2.default.svc.cluster.local:11434"
+      echo ""
+
+      # Test API is alive
+      echo "1. Checking Ollama API health:"
+      curl -s http://ollama-llama2.default.svc.cluster.local:11434/api/tags || echo "Failed to reach Ollama"
+
+      echo ""
+      echo "2. Listing available models:"
+      curl -s http://ollama-llama2.default.svc.cluster.local:11434/api/tags | jq -r '.models[].name' || echo "No models found"
+
+      echo ""
+      echo "3. Testing generation with llama2:"
+      curl -s http://ollama-llama2.default.svc.cluster.local:11434/api/generate -d '{
+        "model": "llama2",
+        "prompt": "What is Modal?",
+        "stream": false
+      }' | jq -r '.response' || echo "Generation failed"
+
+      echo ""
+      echo "Test complete. Pod will remain running for manual testing."
+      echo "Manual test: kubectl exec ollama-test-client -- curl http://ollama-llama2:11434/api/tags"
+      sleep infinity
+  restartPolicy: Never

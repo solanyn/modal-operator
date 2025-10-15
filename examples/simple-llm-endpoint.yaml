@@ -1,0 +1,144 @@
+---
+# Simple LLM-like HTTP endpoint to test ModalEndpoint lifecycle
+# This simulates an LLM service without the complexity of Ollama
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-llm
+  namespace: default
+  annotations:
+    modal-operator.io/offload: "true"
+    modal-operator.io/gpu: "T4:1"
+  labels:
+    app: llm-server
+    modal-operator.io/workload-type: "function"  # Create ModalEndpoint
+spec:
+  containers:
+  - name: llm
+    image: python:3.11-slim
+    command:
+    - python
+    - -c
+    - |
+      from http.server import HTTPServer, BaseHTTPRequestHandler
+      import json
+
+      class LLMHandler(BaseHTTPRequestHandler):
+          def do_POST(self):
+              # Read request body
+              content_length = int(self.headers.get('Content-Length', 0))
+              body = self.rfile.read(content_length).decode('utf-8')
+
+              try:
+                  data = json.loads(body)
+                  prompt = data.get('prompt', 'Hello')
+
+                  # Simulate LLM response
+                  response = {
+                      "model": "simulated-llm",
+                      "prompt": prompt,
+                      "response": f"This is a simulated response to: {prompt}",
+                      "done": True,
+                      "context": "Running on Modal with GPU!"
+                  }
+
+                  self.send_response(200)
+                  self.send_header('Content-type', 'application/json')
+                  self.end_headers()
+                  self.wfile.write(json.dumps(response).encode())
+              except Exception as e:
+                  self.send_response(500)
+                  self.send_header('Content-type', 'application/json')
+                  self.end_headers()
+                  self.wfile.write(json.dumps({"error": str(e)}).encode())
+
+          def do_GET(self):
+              # Health check endpoint
+              response = {
+                  "status": "ready",
+                  "model": "simulated-llm",
+                  "backend": "Modal GPU"
+              }
+              self.send_response(200)
+              self.send_header('Content-type', 'application/json')
+              self.end_headers()
+              self.wfile.write(json.dumps(response).encode())
+
+          def log_message(self, format, *args):
+              print(f"{self.address_string()} - {format%args}")
+
+      server = HTTPServer(('0.0.0.0', 8000), LLMHandler)
+      print("🤖 LLM Server listening on port 8000")
+      print("Ready to process requests on Modal!")
+      server.serve_forever()
+    ports:
+    - containerPort: 8000
+      name: http
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "2"
+
+---
+# Kubernetes Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-llm
+  namespace: default
+  labels:
+    app: llm-server
+spec:
+  selector:
+    app: llm-server
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# Test client
+apiVersion: v1
+kind: Pod
+metadata:
+  name: llm-test-client
+  namespace: default
+spec:
+  containers:
+  - name: client
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "===== Simple LLM on Modal Test ====="
+      echo "Waiting for LLM to be ready..."
+      sleep 20
+
+      echo ""
+      echo "Testing LLM API..."
+      echo "Target: simple-llm.default.svc.cluster.local:8000"
+      echo ""
+
+      # Health check
+      echo "1. Health check:"
+      curl -s http://simple-llm.default.svc.cluster.local:8000 | jq
+
+      echo ""
+      echo "2. Test generation:"
+      curl -s -X POST http://simple-llm.default.svc.cluster.local:8000 \
+        -H "Content-Type: application/json" \
+        -d '{"prompt": "What is Modal?"}' | jq
+
+      echo ""
+      echo "3. Another generation:"
+      curl -s -X POST http://simple-llm.default.svc.cluster.local:8000 \
+        -H "Content-Type: application/json" \
+        -d '{"prompt": "Explain serverless computing"}' | jq
+
+      echo ""
+      echo "Test complete. Pod will remain running."
+      sleep infinity
+  restartPolicy: Never
