@@ -1,8 +1,5 @@
 """Modal vGPU Operator - Kubernetes operator for serverless GPU workloads."""
 
-import sys
-import importlib
-
 __version__ = "0.1.0"
 
 

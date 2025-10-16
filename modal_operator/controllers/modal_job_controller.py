@@ -390,7 +390,9 @@ class ModalJobController:
                 deployed_apps = await list_deployed_apps.aio()
                 for app_info in deployed_apps:
                     if app_info.name == deployment_name:
-                        logger.info(f"Found existing deployment {app_info.app_id} with name {deployment_name}, stopping it")
+                        logger.info(
+                            f"Found existing deployment {app_info.app_id} with name {deployment_name}, stopping it"
+                        )
                         # Stop the old deployment using modal client
                         from modal_proto import api_pb2
 
@@ -431,9 +433,7 @@ class ModalJobController:
             client = modal.Client.from_env()
 
             # Stop the app using Modal's AppStop API
-            stop_request = api_pb2.AppStopRequest(
-                app_id=app_id, source=api_pb2.APP_STOP_SOURCE_CLI
-            )
+            stop_request = api_pb2.AppStopRequest(app_id=app_id, source=api_pb2.APP_STOP_SOURCE_CLI)
             await client.stub.AppStop(stop_request)
 
             logger.info(f"Successfully stopped Modal app {app_id}")

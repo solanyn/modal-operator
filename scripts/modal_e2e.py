@@ -72,10 +72,10 @@ def run_e2e_tests():
             try:
                 docker_proc.terminate()
                 docker_proc.wait(timeout=10)
-            except:
+            except Exception:
                 try:
                     docker_proc.kill()
-                except:
+                except Exception:
                     pass
 
 
@@ -98,7 +98,7 @@ name = "mvgpu"
 version = "0.0.1"
 dependencies = [
     "kopf>=1.37.0",
-    "modal>=0.64.0", 
+    "modal>=0.64.0",
     "kubernetes>=28.0.0",
     "pydantic>=2.0.0",
 ]
@@ -134,7 +134,7 @@ import time
 class MockOperator:
     def __init__(self):
         self.mock = os.getenv("MODAL_MOCK", "true").lower() == "true"
-        
+
     def run(self):
         print("Mock operator running...")
         while True:
@@ -176,18 +176,18 @@ def generate_crds():
             "scope": "Namespaced",
             "names": {
                 "plural": "modaljobs",
-                "singular": "modaljob", 
+                "singular": "modaljob",
                 "kind": "ModalJob"
             }
         }
     }
-    
+
     output_dir = Path("charts/modal-vgpu-operator/crds")
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     with open(output_dir / "modaljobs.yaml", "w") as f:
         yaml.dump(modaljob_crd, f)
-    
+
     print("Generated CRDs")
 
 if __name__ == "__main__":
@@ -208,7 +208,7 @@ class TestBasicE2E:
         result = subprocess.run(["kubectl", "get", "nodes"], capture_output=True)
         assert result.returncode == 0
         assert "Ready" in result.stdout.decode()
-        
+
     def test_crd_installation(self):
         '''Test that CRDs can be installed.'''
         result = subprocess.run([
@@ -236,7 +236,7 @@ def start_docker_daemon():
             if result.returncode == 0:
                 print("✅ Docker daemon ready")
                 return docker_proc
-        except:
+        except Exception:
             pass
         time.sleep(1)
 

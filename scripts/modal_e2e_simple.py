@@ -95,7 +95,7 @@ name = "mvgpu"
 version = "0.0.1"
 dependencies = [
     "kopf>=1.37.0",
-    "modal>=0.64.0", 
+    "modal>=0.64.0",
     "kubernetes>=28.0.0",
     "pydantic>=2.0.0",
 ]
@@ -147,10 +147,10 @@ class NetworkingConfig(BaseModel):
 
 class NetworkingController:
     """Controls networking features for Modal vGPU operator."""
-    
+
     def __init__(self, modal_controller):
         self.modal_controller = modal_controller
-    
+
     def validate_networking_config(self, config: NetworkingConfig):
         """Validate networking configuration."""
         errors = []
@@ -190,18 +190,18 @@ def generate_crds():
             "scope": "Namespaced",
             "names": {
                 "plural": "modaljobs",
-                "singular": "modaljob", 
+                "singular": "modaljob",
                 "kind": "ModalJob"
             }
         }
     }
-    
+
     output_dir = Path("charts/modal-vgpu-operator/crds")
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     with open(output_dir / "modaljobs.yaml", "w") as f:
         yaml.dump(modaljob_crd, f)
-    
+
     print("Generated CRDs")
 
 if __name__ == "__main__":
@@ -217,7 +217,7 @@ from modal_operator.controllers.networking_controller import NetworkingConfig, N
 
 class TestCRDs:
     """Test CRD models."""
-    
+
     def test_modal_job_spec_creation(self):
         """Test ModalJobSpec creation."""
         spec = ModalJobSpec(
@@ -228,7 +228,7 @@ class TestCRDs:
         assert spec.command == ["python", "-c", "print('hello')"]
         assert spec.replicas == 1
         assert spec.enable_i6pn is False
-    
+
     def test_modal_job_spec_with_networking(self):
         """Test ModalJobSpec with networking."""
         spec = ModalJobSpec(
@@ -239,7 +239,7 @@ class TestCRDs:
         )
         assert spec.replicas == 3
         assert spec.enable_i6pn is True
-    
+
     def test_modal_job_status(self):
         """Test ModalJobStatus."""
         status = ModalJobStatus(
@@ -252,22 +252,22 @@ class TestCRDs:
 
 class TestNetworking:
     """Test networking functionality."""
-    
+
     def test_networking_config(self):
         """Test networking configuration."""
         config = NetworkingConfig(enable_i6pn=True, cluster_size=2)
         assert config.enable_i6pn is True
         assert config.cluster_size == 2
-    
+
     def test_networking_validation(self):
         """Test networking validation."""
         controller = NetworkingController(None)
-        
+
         # Valid config
         valid_config = NetworkingConfig(enable_i6pn=True, cluster_size=2)
         errors = controller.validate_networking_config(valid_config)
         assert len(errors) == 0
-        
+
         # Invalid config
         invalid_config = NetworkingConfig(enable_i6pn=False, cluster_size=3)
         errors = controller.validate_networking_config(invalid_config)
@@ -276,21 +276,21 @@ class TestNetworking:
 
 class TestFramework:
     """Test framework functionality."""
-    
+
     def test_imports(self):
         """Test that all modules can be imported."""
         import modal_operator.crds
         import modal_operator.controllers.networking_controller
         assert True
-    
+
     def test_pydantic_validation(self):
         """Test Pydantic validation works."""
         from modal_operator.crds import ModalJobSpec
-        
+
         # Valid spec
         spec = ModalJobSpec(image="test:latest")
         assert spec.image == "test:latest"
-        
+
         # Test defaults
         assert spec.cpu == "1.0"
         assert spec.memory == "512Mi"

@@ -98,7 +98,7 @@ class TestTrainJobController:
 
         assert result["modalJobName"] == "trainjob-test-trainjob"
         assert result["status"] == "Created"
-        mock_controller.create_modal_job.assert_called_once()
+        mock_controller.create_job.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handle_trainjob_skip_non_modal(self):
@@ -109,9 +109,10 @@ class TestTrainJobController:
 
         assert result == {}
 
-    def test_handle_trainjob_missing_runtime_ref(self):
+    @pytest.mark.asyncio
+    async def test_handle_trainjob_missing_runtime_ref(self):
         """Test error handling for missing runtime reference."""
         spec = {"trainer": {}}
 
         with pytest.raises(Exception):  # kopf.PermanentError in real usage
-            _create_modal_job_spec(spec, "test-job", "default")
+            await handle_trainjob(spec=spec, name="test-job", namespace="default")

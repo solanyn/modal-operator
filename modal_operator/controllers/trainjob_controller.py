@@ -4,8 +4,9 @@ import logging
 from typing import Any, Dict
 
 import kopf
+
 from modal_operator.controllers.modal_job_controller import ModalJobController
-from modal_operator.models.modal_job import ModalJob, ModalJobSpec
+from modal_operator.crds import ModalJobSpec
 
 logger = logging.getLogger(__name__)
 
@@ -30,31 +31,23 @@ async def handle_trainjob(spec: Dict[str, Any], name: str, namespace: str, **kwa
     # Create ModalJob from TrainJob spec
     modal_job_spec = _create_modal_job_spec(spec, name, namespace)
 
-    # Create ModalJob resource
-    modal_job = ModalJob(
-        apiVersion="modal.com/v1alpha1",
-        kind="ModalJob",
-        metadata={
-            "name": f"trainjob-{name}",
-            "namespace": namespace,
-            "labels": {"modal.com/source": "trainjob", "modal.com/trainjob-name": name},
-            "ownerReferences": [
-                {
-                    "apiVersion": "trainer.kubeflow.org/v1alpha1",
-                    "kind": "TrainJob",
-                    "name": name,
-                    "uid": kwargs.get("uid"),
-                    "controller": True,
-                    "blockOwnerDeletion": True,
-                }
-            ],
-        },
-        spec=modal_job_spec,
-    )
-
     # Delegate to ModalJobController
     controller = ModalJobController()
-    await controller.create_modal_job(modal_job)
+    job_name = f"trainjob-{name}"
+
+    await controller.create_job(
+        name=job_name,
+        image=modal_job_spec.image,
+        command=modal_job_spec.command,
+        cpu=modal_job_spec.cpu,
+        memory=modal_job_spec.memory,
+        gpu=modal_job_spec.gpu,
+        env=modal_job_spec.env,
+        timeout=modal_job_spec.timeout,
+        retries=modal_job_spec.retries,
+        replicas=modal_job_spec.replicas,
+        enable_i6pn=modal_job_spec.enable_i6pn,
+    )
 
     return {"modalJobName": f"trainjob-{name}", "status": "Created"}
 
@@ -62,12 +55,11 @@ async def handle_trainjob(spec: Dict[str, Any], name: str, namespace: str, **kwa
 @kopf.on.delete("trainer.kubeflow.org", "v1alpha1", "trainjobs")
 async def cleanup_trainjob(name: str, namespace: str, **kwargs):
     """Clean up Modal resources when TrainJob is deleted."""
-    modal_job_name = f"trainjob-{name}"
+    # TODO: Implement cleanup once ModalJobController has cancel/cleanup methods
+    # controller = ModalJobController()
+    # await controller.cancel_job(app_id, function_id)
 
-    controller = ModalJobController()
-    await controller.cleanup_modal_job(modal_job_name, namespace)
-
-    logger.info(f"Cleaned up Modal resources for TrainJob {name}")
+    logger.info(f"TrainJob {name} deleted - Modal cleanup not yet implemented")
 
 
 def _should_handle_trainjob(spec: Dict[str, Any], runtime_name: str) -> bool:

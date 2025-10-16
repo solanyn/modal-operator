@@ -5,8 +5,6 @@ The Modal library incorrectly imports modal_operator.config instead of modal.con
 This module provides a proxy that redirects to modal.config while breaking circular imports.
 """
 
-import sys
-
 # Track import state to break circular dependencies
 _config_cache = {}
 

@@ -20,13 +20,12 @@ class ImmichModalIntegration:
             "image_data": image_data.hex(),  # Convert bytes to hex string
             "person_id": person_id,
             "model": "face_recognition",
-            "threshold": 0.6
+            "threshold": 0.6,
         }
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{self.proxy_url}/modal-function/immich-face-recognition",
-                json=payload
+                f"{self.proxy_url}/modal-function/immich-face-recognition", json=payload
             ) as response:
                 result = await response.json()
 
@@ -34,7 +33,7 @@ class ImmichModalIntegration:
                     return {
                         "faces": result["result"]["faces"],
                         "embeddings": result["result"]["embeddings"],
-                        "processing_time": result["result"]["processing_time"]
+                        "processing_time": result["result"]["processing_time"],
                     }
                 else:
                     raise Exception(f"Face recognition failed: {result.get('error')}")

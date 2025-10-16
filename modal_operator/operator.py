@@ -392,7 +392,9 @@ async def create_modal_endpoint(spec, name, namespace, logger, **kwargs):
                 name=name,
                 body=status_patch,
             )
-            logger.info(f"Successfully updated status for ModalEndpoint {name} to Ready. URL: {endpoint_result['endpoint_url']}")
+            logger.info(
+                f"Successfully updated status for ModalEndpoint {name} to Ready. URL: {endpoint_result['endpoint_url']}"
+            )
 
         except Exception as status_error:
             logger.error(f"Failed to update status for ModalEndpoint {name}: {status_error}")
@@ -623,7 +625,7 @@ async def mutated_pod_created(body, name, namespace, logger, **kwargs):
                 version="v1alpha1",
                 namespace=namespace,
                 plural=resource_plural,
-                name=resource_name
+                name=resource_name,
             )
             logger.info(f"{resource_kind} {resource_name} already exists, skipping creation")
             return
@@ -634,11 +636,12 @@ async def mutated_pod_created(body, name, namespace, logger, **kwargs):
         logger.info(f"Creating {resource_kind} for webhook-mutated pod {name}")
 
         # Convert pod to ModalJob using original container specs from environment variables
-        original_images = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[2].get("value", "[]"))
-        original_names = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[3].get("value", "[]"))
-        original_commands = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[4].get("value", "[]"))
-        original_args = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[5].get("value", "[]"))
-        original_env = json.loads(body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])[6].get("value", "{}"))
+        container_env = body.get("spec", {}).get("containers", [{}])[0].get("env", [{}])
+        original_images = json.loads(container_env[2].get("value", "[]"))
+        original_names = json.loads(container_env[3].get("value", "[]"))
+        original_commands = json.loads(container_env[4].get("value", "[]"))
+        original_args = json.loads(container_env[5].get("value", "[]"))
+        original_env = json.loads(container_env[6].get("value", "{}"))
 
         # Build spec from original container specs
         spec = {

@@ -46,10 +46,7 @@ class TunnelProxy:
             # Get function URL from Kubernetes
             function_url = await self.get_function_url(function_name)
             if not function_url:
-                return web.json_response(
-                    {"error": f"Function {function_name} not found"},
-                    status=404
-                )
+                return web.json_response({"error": f"Function {function_name} not found"}, status=404)
 
             # CRITICAL: Intercept and merge authorization headers
             headers = dict(request.headers)  # Copy original headers
@@ -59,25 +56,26 @@ class TunnelProxy:
             headers["Content-Type"] = "application/json"
 
             # Remove hop-by-hop headers
-            for hop_header in ["connection", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding"]:
+            hop_headers = [
+                "connection",
+                "upgrade",
+                "proxy-authenticate",
+                "proxy-authorization",
+                "te",
+                "trailers",
+                "transfer-encoding",
+            ]
+            for hop_header in hop_headers:
                 headers.pop(hop_header, None)
 
             logger.info(f"Calling Modal function: {function_url} with injected auth")
 
             # Forward to Modal with injected credentials
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    function_url,
-                    json=payload,
-                    headers=headers
-                ) as response:
+                async with session.post(function_url, json=payload, headers=headers) as response:
                     result = await response.json()
 
-                    return web.json_response({
-                        "status": "success",
-                        "result": result,
-                        "function": function_name
-                    })
+                    return web.json_response({"status": "success", "result": result, "function": function_name})
 
         except Exception as e:
             logger.error(f"Error calling function {function_name}: {e}")
@@ -105,19 +103,12 @@ class TunnelProxy:
             # Forward to Modal API with injected credentials
             async with aiohttp.ClientSession() as session:
                 async with session.request(
-                    method=request.method,
-                    url=modal_url,
-                    headers=headers,
-                    data=await request.read()
+                    method=request.method, url=modal_url, headers=headers, data=await request.read()
                 ) as response:
                     body = await response.read()
 
                     # Forward response
-                    return web.Response(
-                        body=body,
-                        status=response.status,
-                        headers=dict(response.headers)
-                    )
+                    return web.Response(body=body, status=response.status, headers=dict(response.headers))
 
         except Exception as e:
             logger.error(f"Error proxying Modal API {path}: {e}")
