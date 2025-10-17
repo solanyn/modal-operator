@@ -24,6 +24,7 @@ class TestModalWebhookController:
     def test_mutate_pod_with_modal_annotation(self, webhook, mock_k8s_client):
         """Test pod mutation with Modal annotation."""
         admission_request = {
+            "uid": "test-uid",
             "object": {
                 "metadata": {
                     "name": "test-pod",
@@ -44,20 +45,16 @@ class TestModalWebhookController:
             }
         }
 
-        # Mock ConfigMap creation
-        mock_k8s_client.create_namespaced_config_map.return_value = None
-
         response = webhook.mutate_pod(admission_request)
 
         assert response["response"]["allowed"] is True
         assert "patch" in response["response"]
-
-        # Verify ConfigMap was created
-        mock_k8s_client.create_namespaced_config_map.assert_called_once()
+        assert response["response"]["patchType"] == "JSONPatch"
 
     def test_mutate_pod_without_modal_indicators(self, webhook):
-        """Test pod mutation without Modal indicators."""
+        """Test pod mutation - webhook now always mutates due to objectSelector."""
         admission_request = {
+            "uid": "test-uid-2",
             "object": {
                 "metadata": {"name": "test-pod", "namespace": "default", "annotations": {}},
                 "spec": {"containers": [{"name": "test-container", "image": "nginx:latest"}]},
@@ -66,99 +63,128 @@ class TestModalWebhookController:
 
         response = webhook.mutate_pod(admission_request)
 
+        # With objectSelector, webhook only receives pods that need mutation
+        # So all pods that reach this handler will be mutated
         assert response["response"]["allowed"] is True
-        assert "patch" not in response["response"]
-        assert "does not need Modal mutation" in response["response"]["status"]["message"]
+        assert "patch" in response["response"]
 
-    def test_create_pod_spec_storage_basic(self, webhook, mock_k8s_client):
-        """Test ConfigMap creation for pod spec storage."""
-        pod = Mock(spec=client.V1Pod)
-        pod.metadata = Mock(spec=client.V1ObjectMeta)
-        pod.metadata.name = "test-pod"
-        pod.metadata.namespace = "default"
-        pod.metadata.uid = "test-uid"
-        pod.metadata.annotations = {"modal-operator.io/use-modal": "true"}
-        pod.spec = Mock(spec=client.V1PodSpec)
-        pod.spec.containers = [Mock(spec=client.V1Container)]
-        pod.spec.containers[0].image = "test-image"
-        pod.spec.containers[0].command = None
-        pod.spec.containers[0].args = None
-        pod.spec.containers[0].resources = None
-        pod.spec.containers[0].env = None
+    def test_generate_mutation_patches_replaces_containers(self, webhook):
+        """Test that mutation patches replace containers with Modal logger and proxy."""
+        pod_dict = {
+            "metadata": {
+                "name": "test-pod",
+                "namespace": "default",
+                "annotations": {}
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "test-container",
+                        "image": "pytorch/pytorch:latest",
+                        "command": ["python"],
+                        "args": ["-c", "print('hello')"]
+                    }
+                ]
+            }
+        }
 
-        mock_k8s_client.create_namespaced_config_map.return_value = None
+        patches = webhook._generate_mutation_patches(pod_dict, "", None)
 
-        config_map_name, secret_name = webhook._create_pod_spec_storage(pod)
-
-        assert config_map_name == "modal-spec-test-pod"
-        assert secret_name is None  # No sensitive env vars
-        mock_k8s_client.create_namespaced_config_map.assert_called_once()
-
-    def test_create_pod_spec_storage_with_secrets(self, webhook, mock_k8s_client):
-        """Test ConfigMap and Secret creation with sensitive env vars."""
-        pod = Mock(spec=client.V1Pod)
-        pod.metadata = Mock(spec=client.V1ObjectMeta)
-        pod.metadata.name = "test-pod"
-        pod.metadata.namespace = "default"
-        pod.metadata.uid = "test-uid"
-        pod.metadata.annotations = {"modal-operator.io/use-modal": "true"}
-        pod.spec = Mock(spec=client.V1PodSpec)
-        pod.spec.containers = [Mock(spec=client.V1Container)]
-        pod.spec.containers[0].image = "test-image"
-        pod.spec.containers[0].command = None
-        pod.spec.containers[0].args = None
-        pod.spec.containers[0].resources = None
-
-        # Mock sensitive env var
-        env_var = Mock()
-        env_var.name = "DATABASE_PASSWORD"
-        env_var.value = "secret123"
-        pod.spec.containers[0].env = [env_var]
-
-        mock_k8s_client.create_namespaced_config_map.return_value = None
-        mock_k8s_client.create_namespaced_secret.return_value = None
-
-        config_map_name, secret_name = webhook._create_pod_spec_storage(pod)
-
-        assert config_map_name == "modal-spec-test-pod"
-        assert secret_name == "modal-env-test-pod"
-        mock_k8s_client.create_namespaced_config_map.assert_called_once()
-        mock_k8s_client.create_namespaced_secret.assert_called_once()
-
-    def test_generate_mutation_patches_basic(self, webhook):
-        """Test generation of basic mutation patches."""
-        pod = Mock(spec=client.V1Pod)
-        pod.spec = Mock(spec=client.V1PodSpec)
-        pod.spec.containers = [Mock(spec=client.V1Container)]
-        pod.spec.containers[0].name = "original-container"
-        pod.spec.volumes = None
-
-        patches = webhook._generate_mutation_patches(pod, "test-config", None)
-
-        assert len(patches) >= 2  # Container replacement + volume addition + annotation
-
-        # Check container replacement patch
-        container_patch = next(p for p in patches if p["path"] == "/spec/containers/0")
+        # Find container replacement patch
+        container_patch = next((p for p in patches if p["path"] == "/spec/containers"), None)
+        assert container_patch is not None
         assert container_patch["op"] == "replace"
-        assert container_patch["value"]["image"] == "modal-operator/proxy:latest"
-        assert container_patch["value"]["command"] == ["modal-proxy"]
+        assert len(container_patch["value"]) == 2  # logger + proxy
+        assert container_patch["value"][0]["image"] == "modal-operator/logger:latest"
+        assert container_patch["value"][1]["image"] == "modal-operator/proxy:latest"
 
-    def test_generate_mutation_patches_with_secret(self, webhook):
-        """Test generation of mutation patches with secret mount."""
-        pod = Mock(spec=client.V1Pod)
-        pod.spec = Mock(spec=client.V1PodSpec)
-        pod.spec.containers = [Mock(spec=client.V1Container)]
-        pod.spec.containers[0].name = "original-container"
-        pod.spec.volumes = None
+    def test_generate_mutation_patches_preserves_networking_config(self, webhook):
+        """Test that mutation patches preserve original networking configuration."""
+        pod_dict = {
+            "metadata": {
+                "name": "test-pod",
+                "namespace": "default",
+                "annotations": {}
+            },
+            "spec": {
+                "hostNetwork": True,
+                "dnsPolicy": "ClusterFirstWithHostNet",
+                "containers": [
+                    {
+                        "name": "test-container",
+                        "image": "nginx:latest"
+                    }
+                ]
+            }
+        }
 
-        patches = webhook._generate_mutation_patches(pod, "test-config", "test-secret")
+        patches = webhook._generate_mutation_patches(pod_dict, "", None)
 
-        # Check that secret mount is added
-        container_patch = next(p for p in patches if p["path"] == "/spec/containers/0")
-        volume_mounts = container_patch["value"]["volumeMounts"]
+        # Find networking annotation patch
+        networking_patch = next((p for p in patches if "original-networking" in p["path"]), None)
+        assert networking_patch is not None
 
-        assert len(volume_mounts) == 2  # Config + Secret mounts
-        assert any(vm["name"] == "modal-secrets" for vm in volume_mounts)
+        # Verify hostNetwork is disabled for placeholder
+        host_network_patch = next((p for p in patches if p["path"] == "/spec/hostNetwork"), None)
+        assert host_network_patch is not None
+        assert host_network_patch["value"] is False
+
+    def test_generate_mutation_patches_adds_volumes(self, webhook):
+        """Test generation of mutation patches adds Modal secret volume."""
+        pod_dict = {
+            "metadata": {
+                "name": "test-pod",
+                "namespace": "default",
+                "annotations": {}
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "original-container",
+                        "image": "nginx:latest"
+                    }
+                ]
+            }
+        }
+
+        patches = webhook._generate_mutation_patches(pod_dict, "", None)
+
+        # Check that modal-secret volume is added
+        volume_patch = next((p for p in patches if p["path"] == "/spec/volumes/-"), None)
+        assert volume_patch is not None
+        assert volume_patch["op"] == "add"
+        assert volume_patch["value"]["name"] == "modal-secret"
+        assert volume_patch["value"]["secret"]["secretName"] == "modal-token"
+
+    def test_generate_mutation_patches_adds_annotations(self, webhook):
+        """Test generation of mutation patches adds Modal annotations."""
+        pod_dict = {
+            "metadata": {
+                "name": "test-pod",
+                "namespace": "default",
+                "annotations": {}
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "test-container",
+                        "image": "nginx:latest"
+                    }
+                ]
+            }
+        }
+
+        patches = webhook._generate_mutation_patches(pod_dict, "", None)
+
+        # Check for mutation annotations
+        mutated_patch = next((p for p in patches if "mutated" in p["path"]), None)
+        assert mutated_patch is not None
+        assert mutated_patch["value"] == "true"
+
+        # Check for tunnel annotation
+        tunnel_patch = next((p for p in patches if "tunnel-enabled" in p["path"]), None)
+        assert tunnel_patch is not None
+        assert tunnel_patch["value"] == "true"
 
     def test_extract_sensitive_env(self, webhook):
         """Test extraction of sensitive environment variables."""

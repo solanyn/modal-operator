@@ -102,7 +102,7 @@ class TestE2E:
         }
 
         # Test single replica (no clustering)
-        from modal_operator.networking import NetworkingConfig
+        from modal_operator.controllers.networking_controller import NetworkingConfig
 
         single_config = NetworkingConfig(enable_i6pn=False, cluster_size=1)
 
