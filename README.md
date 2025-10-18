@@ -6,11 +6,15 @@ The operator consists of Modal vGPU controllers deployed via Helm charts, built 
 
 ## Features
 
+- **Three CRD Types**: ModalJob (batch), ModalEndpoint (HTTP), ModalFunction (serverless functions)
 - **Seamless GPU Offloading**: Automatically detects GPU pods and runs them on Modal's serverless infrastructure
-- **Secure Tunneling**: Uses Modal tunnels to keep all traffic private through the Kubernetes cluster
+- **Production Deployments**: Persistent deployments using `app.deploy.aio()` pattern
+- **Kubernetes Service Integration**: Functions and endpoints accessible via standard K8s services
+- **Direct Status Patching**: Reliable status updates via Kubernetes API
+- **Resource Cleanup**: Automatic Modal app teardown on CRD deletion
 - **Kubeflow Integration**: Compatible with Katib, Training Operator, and KServe
-- **Status Synchronization**: Maps Modal job status back to Kubernetes pod phases
 - **Metrics & Monitoring**: Prometheus metrics for job tracking and cost monitoring
+- **Single Distroless Image**: ~180MB image containing operator, logger, and proxy
 - **Testing Ready**: Mock mode for development and testing without Modal API
 
 ## Quick Start
@@ -92,6 +96,88 @@ helm upgrade --install modal-operator ./charts/modal-operator \
 ```
 
 ## Usage
+
+The operator provides three ways to run workloads on Modal:
+
+1. **ModalJob CRD** - For batch jobs and training workloads
+2. **ModalEndpoint CRD** - For HTTP services and inference endpoints
+3. **ModalFunction CRD** - For serverless functions callable from Kubernetes
+4. **Pod Annotations** - For automatic GPU pod offloading
+
+### ModalJob - Batch Workloads
+
+Run batch jobs on Modal with GPU support:
+
+```yaml
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalJob
+metadata:
+  name: training-job
+  namespace: default
+spec:
+  image: pytorch/pytorch:latest
+  command: ["python", "train.py"]
+  cpu: "4.0"
+  memory: "16Gi"
+  gpu: "A100"  # GPU type: T4, A10G, A100, etc.
+  env:
+    EPOCHS: "100"
+    BATCH_SIZE: "32"
+```
+
+### ModalEndpoint - HTTP Services
+
+Deploy HTTP services with persistent URLs:
+
+```yaml
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalEndpoint
+metadata:
+  name: inference-api
+  namespace: default
+spec:
+  image: python:3.11-slim
+  handler: "app.handler"  # Python module.function
+  cpu: "2.0"
+  memory: "4Gi"
+  gpu: "T4"  # Optional GPU
+  min_replicas: 1
+  max_replicas: 10
+  env:
+    MODEL_PATH: "/models/latest"
+```
+
+The endpoint will be accessible at the URL provided in the status:
+```bash
+kubectl get modalendpoint inference-api -o jsonpath='{.status.endpoint_url}'
+```
+
+### ModalFunction - Serverless Functions
+
+Deploy serverless functions callable from within Kubernetes:
+
+```yaml
+apiVersion: modal-operator.io/v1alpha1
+kind: ModalFunction
+metadata:
+  name: data-processor
+  namespace: default
+spec:
+  image: python:3.11-slim
+  handler: "processor.process"  # Python module.function
+  cpu: "1.0"
+  memory: "2Gi"
+  timeout: 300  # seconds
+  concurrency: 10  # concurrent invocations
+  env:
+    LOG_LEVEL: "INFO"
+```
+
+The function is callable from other pods via Kubernetes Service:
+```python
+import requests
+response = requests.get("http://data-processor.default.svc.cluster.local")
+```
 
 ### Kubeflow TrainJob Integration
 
