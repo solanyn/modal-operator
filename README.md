@@ -1,99 +1,30 @@
 # Modal Operator
 
-A Kubernetes operator that enables serverless compute workloads by offloading pods to Modal's cloud infrastructure while maintaining full compatibility with Kubeflow components.
+Run Kubernetes workloads on Modal's serverless infrastructure - get instant GPU access, pay only for compute time, and keep your existing K8s workflows.
 
-The operator consists of Modal vGPU controllers deployed via Helm charts, built with Python using the [Kopf](https://kopf.readthedocs.io/) framework and the [Modal Python client](https://modal.com/docs).
+## Why Use This?
 
-## Features
+- **Instant GPU Access**: No waiting for GPU nodes - Modal provisions them in seconds
+- **Cost Savings**: Pay only for actual compute time, not idle GPUs sitting in your cluster
+- **Zero Infrastructure**: No GPU node management, autoscaling, or capacity planning
+- **Keep Your Workflows**: Works with existing Kubernetes pods, Kubeflow, and standard tooling
+- **Native K8s Integration**: Three CRDs for batch jobs, HTTP services, and serverless functions
 
-- **Three CRD Types**: ModalJob (batch), ModalEndpoint (HTTP), ModalFunction (serverless functions)
-- **Seamless GPU Offloading**: Automatically detects GPU pods and runs them on Modal's serverless infrastructure
-- **Production Deployments**: Persistent deployments using `app.deploy.aio()` pattern
-- **Kubernetes Service Integration**: Functions and endpoints accessible via standard K8s services
-- **Direct Status Patching**: Reliable status updates via Kubernetes API
-- **Resource Cleanup**: Automatic Modal app teardown on CRD deletion
-- **Kubeflow Integration**: Compatible with Katib, Training Operator, and KServe
-- **Metrics & Monitoring**: Prometheus metrics for job tracking and cost monitoring
-- **Single Distroless Image**: ~180MB image containing operator, logger, and proxy
-- **Testing Ready**: Mock mode for development and testing without Modal API
-
-## Quick Start
-
-### Prerequisites
-
-- Kubernetes cluster (kind, minikube, or any K8s distribution)
-- Helm 3.x
-- Docker
-- kubectl
-- Python 3.9+ with [uv](https://docs.astral.sh/uv/)
-- Modal account and API tokens
-
-### Development Setup
-
-**Note: This project uses `uv` exclusively for Python package management.**
+## Installation
 
 ```bash
-# Install dependencies
-uv sync
-
-# Run tests
-uv run pytest
-
-# Format code
-uv run ruff format
-
-# Lint code
-uv run ruff check
-
-# Test real Modal integration
-uv run python test_real_modal.py
-
-# Run e2e tests locally with kind
-./scripts/run-e2e-tests.sh
-
-# Run e2e tests in Modal (recommended)
-./scripts/run-modal-e2e.sh
-```
-
-### Testing on kind
-
-The easiest way to test the operator is using the provided kind setup:
-
-```bash
-# Run the complete e2e test
-inv test-e2e
-
-# Or step by step:
-inv kind-create
-inv docker-build
-inv kind-load
-inv deploy
-inv test-gpu-pod
-```
-
-This will:
-1. Create a kind cluster
-2. Build and load the operator image
-3. Deploy the operator with mock Modal client
-4. Test with a sample GPU pod
-
-### Production Deployment
-
-1. **Create Modal API credentials secret:**
-```bash
+# Create Modal credentials
 kubectl create secret generic modal-token \
   --namespace modal-system \
-  --from-literal=token-id="your-modal-token-id" \
-  --from-literal=token-secret="your-modal-token-secret"
+  --from-literal=MODAL_TOKEN_ID="your-token-id" \
+  --from-literal=MODAL_TOKEN_SECRET="your-token-secret"
+
+# Install via Helm
+helm install modal-operator oci://ghcr.io/solanyn/charts/modal-operator \
+  --namespace modal-system --create-namespace
 ```
 
-2. **Deploy with Helm:**
-```bash
-helm upgrade --install modal-operator ./charts/modal-operator \
-  --namespace modal-system \
-  --create-namespace \
-  --set testing.mockModal=false
-```
+## Quick Examples
 
 ## Usage
 
