@@ -42,7 +42,7 @@ class TestModalWebhookController:
                         }
                     ]
                 },
-            }
+            },
         }
 
         response = webhook.mutate_pod(admission_request)
@@ -58,7 +58,7 @@ class TestModalWebhookController:
             "object": {
                 "metadata": {"name": "test-pod", "namespace": "default", "annotations": {}},
                 "spec": {"containers": [{"name": "test-container", "image": "nginx:latest"}]},
-            }
+            },
         }
 
         response = webhook.mutate_pod(admission_request)
@@ -71,21 +71,17 @@ class TestModalWebhookController:
     def test_generate_mutation_patches_replaces_containers(self, webhook):
         """Test that mutation patches replace containers with Modal logger and proxy."""
         pod_dict = {
-            "metadata": {
-                "name": "test-pod",
-                "namespace": "default",
-                "annotations": {}
-            },
+            "metadata": {"name": "test-pod", "namespace": "default", "annotations": {}},
             "spec": {
                 "containers": [
                     {
                         "name": "test-container",
                         "image": "pytorch/pytorch:latest",
                         "command": ["python"],
-                        "args": ["-c", "print('hello')"]
+                        "args": ["-c", "print('hello')"],
                     }
                 ]
-            }
+            },
         }
 
         patches = webhook._generate_mutation_patches(pod_dict, "", None)
@@ -101,21 +97,12 @@ class TestModalWebhookController:
     def test_generate_mutation_patches_preserves_networking_config(self, webhook):
         """Test that mutation patches preserve original networking configuration."""
         pod_dict = {
-            "metadata": {
-                "name": "test-pod",
-                "namespace": "default",
-                "annotations": {}
-            },
+            "metadata": {"name": "test-pod", "namespace": "default", "annotations": {}},
             "spec": {
                 "hostNetwork": True,
                 "dnsPolicy": "ClusterFirstWithHostNet",
-                "containers": [
-                    {
-                        "name": "test-container",
-                        "image": "nginx:latest"
-                    }
-                ]
-            }
+                "containers": [{"name": "test-container", "image": "nginx:latest"}],
+            },
         }
 
         patches = webhook._generate_mutation_patches(pod_dict, "", None)
@@ -132,19 +119,8 @@ class TestModalWebhookController:
     def test_generate_mutation_patches_adds_volumes(self, webhook):
         """Test generation of mutation patches adds Modal secret volume."""
         pod_dict = {
-            "metadata": {
-                "name": "test-pod",
-                "namespace": "default",
-                "annotations": {}
-            },
-            "spec": {
-                "containers": [
-                    {
-                        "name": "original-container",
-                        "image": "nginx:latest"
-                    }
-                ]
-            }
+            "metadata": {"name": "test-pod", "namespace": "default", "annotations": {}},
+            "spec": {"containers": [{"name": "original-container", "image": "nginx:latest"}]},
         }
 
         patches = webhook._generate_mutation_patches(pod_dict, "", None)
@@ -159,19 +135,8 @@ class TestModalWebhookController:
     def test_generate_mutation_patches_adds_annotations(self, webhook):
         """Test generation of mutation patches adds Modal annotations."""
         pod_dict = {
-            "metadata": {
-                "name": "test-pod",
-                "namespace": "default",
-                "annotations": {}
-            },
-            "spec": {
-                "containers": [
-                    {
-                        "name": "test-container",
-                        "image": "nginx:latest"
-                    }
-                ]
-            }
+            "metadata": {"name": "test-pod", "namespace": "default", "annotations": {}},
+            "spec": {"containers": [{"name": "test-container", "image": "nginx:latest"}]},
         }
 
         patches = webhook._generate_mutation_patches(pod_dict, "", None)
