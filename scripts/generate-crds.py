@@ -100,9 +100,9 @@ def generate_crd(name, group, version, kind, spec_model, status_model=None):
 
     # Add status schema if provided
     if status_model:
-        crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"][
-            "status"
-        ] = pydantic_to_openapi_schema(status_model)
+        crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["status"] = pydantic_to_openapi_schema(
+            status_model
+        )
 
         # Add status subresource
         crd["spec"]["versions"][0]["subresources"] = {"status": {}}

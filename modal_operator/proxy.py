@@ -19,18 +19,14 @@ class ModalOperatorProxy:
         self.host = host
         self.port = port
 
-    async def handle_client(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ):
+    async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
             # Modal operator proxy handshake
             if not await self.modal_proxy_handshake(reader, writer):
                 return
 
             # Modal operator proxy connect request
-            target_host, target_port = await self.modal_proxy_connect_request(
-                reader, writer
-            )
+            target_host, target_port = await self.modal_proxy_connect_request(reader, writer)
             if not target_host:
                 return
 
@@ -38,9 +34,7 @@ class ModalOperatorProxy:
 
             # Connect to target (cluster service)
             try:
-                target_reader, target_writer = await asyncio.open_connection(
-                    target_host, target_port
-                )
+                target_reader, target_writer = await asyncio.open_connection(target_host, target_port)
             except Exception as e:
                 logger.error(f"Failed to connect to {target_host}:{target_port}: {e}")
                 # Send connection refused
@@ -65,9 +59,7 @@ class ModalOperatorProxy:
             writer.close()
             await writer.wait_closed()
 
-    async def modal_proxy_handshake(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> bool:
+    async def modal_proxy_handshake(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> bool:
         # Read version and number of methods
         data = await reader.read(2)
         if len(data) != 2 or data[0] != 0x05:
@@ -105,9 +97,7 @@ class ModalOperatorProxy:
             host = addr_data.decode("utf-8")
         else:
             # Unsupported address type
-            writer.write(
-                b"\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00"
-            )  # Address type not supported
+            writer.write(b"\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00")  # Address type not supported
             await writer.drain()
             return None, None
 
@@ -117,9 +107,7 @@ class ModalOperatorProxy:
 
         return host, port
 
-    async def forward_data(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, direction: str
-    ):
+    async def forward_data(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, direction: str):
         try:
             while True:
                 data = await reader.read(4096)
@@ -136,9 +124,7 @@ class ModalOperatorProxy:
         server = await asyncio.start_server(self.handle_client, self.host, self.port)
 
         logger.info(f"Modal operator proxy started on {self.host}:{self.port}")
-        logger.info(
-            "Modal workloads can connect via: modal-operator-proxy://proxy:1080"
-        )
+        logger.info("Modal workloads can connect via: modal-operator-proxy://proxy:1080")
 
         async with server:
             await server.serve_forever()
