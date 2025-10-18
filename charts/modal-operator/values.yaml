@@ -1,9 +1,9 @@
 replicaCount: 1
 
 image:
-  repository: modal-operator
+  repository: ghcr.io/solanyn/modal-operator
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: ""  # Defaults to chart appVersion
 
 nameOverride: ""
 fullnameOverride: ""
@@ -43,16 +43,10 @@ proxy:
   enabled: true
   replicaCount: 2
   image:
-    repository: modal-operator/modal-operator-proxy
-    pullPolicy: Never
-    tag: "latest"
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
+    repository: ghcr.io/solanyn/modal-operator-proxy
+    pullPolicy: IfNotPresent
+    tag: ""  # Defaults to chart appVersion
+  resources: {}  # Unset by default - users should configure based on their needs
 
 # Webhook configuration
 webhook:
