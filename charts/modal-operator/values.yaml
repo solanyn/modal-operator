@@ -4,17 +4,7 @@ image:
   repository: ghcr.io/solanyn/modal-operator
   pullPolicy: IfNotPresent
   tag: ""  # Defaults to chart appVersion
-
-# Sidecar images for mutated pods
-sidecarImages:
-  logger:
-    repository: ghcr.io/solanyn/modal-operator-logger
-    pullPolicy: IfNotPresent
-    tag: ""  # Defaults to chart appVersion
-  proxy:
-    repository: ghcr.io/solanyn/modal-operator-proxy
-    pullPolicy: IfNotPresent
-    tag: ""  # Defaults to chart appVersion
+  # Note: Same image is used for operator, logger, and proxy with different commands
 
 nameOverride: ""
 fullnameOverride: ""

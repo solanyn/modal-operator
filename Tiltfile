@@ -82,21 +82,7 @@ local_resource(
     labels=['setup']
 )
 
-# Build logger for log streaming from Modal jobs (distroless Python)
-docker_build(
-    'modal-operator/logger',
-    './docker/modal-logger',
-    dockerfile='./docker/modal-logger/Dockerfile.distroless'
-)
-
-# Build proxy for sidecar injection (distroless)
-docker_build(
-    'modal-operator/proxy',
-    './tunnel',
-    dockerfile='./tunnel/Dockerfile.distroless'
-)
-
-# Build operator image
+# Build single operator image (contains operator, logger, and proxy)
 docker_build(
     'modal-operator',
     '.',

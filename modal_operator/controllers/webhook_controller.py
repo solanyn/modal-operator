@@ -20,12 +20,10 @@ class ModalWebhookController:
     def __init__(
         self,
         k8s_client: client.CoreV1Api,
-        logger_image: str = "ghcr.io/solanyn/modal-operator-logger:latest",
-        proxy_image: str = "ghcr.io/solanyn/modal-operator-proxy:latest",
+        operator_image: str = "ghcr.io/solanyn/modal-operator:latest",
     ):
         self.k8s_client = k8s_client
-        self.logger_image = logger_image
-        self.proxy_image = proxy_image
+        self.operator_image = operator_image
 
     def mutate_pod(self, admission_request: Dict[str, Any]) -> Dict[str, Any]:
         """Mutate pod if it should run on Modal.
@@ -176,8 +174,9 @@ class ModalWebhookController:
             "value": [
                 {
                     "name": original_containers[0].get("name", "logger"),
-                    "image": self.logger_image,
+                    "image": self.operator_image,
                     "imagePullPolicy": "IfNotPresent",
+                    "command": ["python3", "-m", "modal_operator.logger"],
                     "env": [
                         {"name": "POD_NAME", "value": pod_name},
                         {
@@ -200,8 +199,9 @@ class ModalWebhookController:
                 },
                 {
                     "name": "proxy",
-                    "image": self.proxy_image,
+                    "image": self.operator_image,
                     "imagePullPolicy": "IfNotPresent",
+                    "command": ["python3", "-m", "modal_operator.proxy"],
                     "ports": [{"containerPort": 1080, "name": "proxy", "protocol": "TCP"}],
                     "env": [{"name": "PROXY_PORT", "value": "1080"}, {"name": "POD_NAME", "value": pod_name}],
                     "resources": {

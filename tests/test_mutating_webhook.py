@@ -91,8 +91,14 @@ class TestModalWebhookController:
         assert container_patch is not None
         assert container_patch["op"] == "replace"
         assert len(container_patch["value"]) == 2  # logger + proxy
-        assert container_patch["value"][0]["image"] == "ghcr.io/solanyn/modal-operator-logger:latest"
-        assert container_patch["value"][1]["image"] == "ghcr.io/solanyn/modal-operator-proxy:latest"
+
+        # Both containers use the same operator image with different commands
+        assert container_patch["value"][0]["image"] == "ghcr.io/solanyn/modal-operator:latest"
+        assert container_patch["value"][1]["image"] == "ghcr.io/solanyn/modal-operator:latest"
+
+        # Verify different commands
+        assert container_patch["value"][0]["command"] == ["python3", "-m", "modal_operator.logger"]
+        assert container_patch["value"][1]["command"] == ["python3", "-m", "modal_operator.proxy"]
 
     def test_generate_mutation_patches_preserves_networking_config(self, webhook):
         """Test that mutation patches preserve original networking configuration."""

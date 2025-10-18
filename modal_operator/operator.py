@@ -71,10 +71,9 @@ def configure(settings: kopf.OperatorSettings, **_):
         networking_controller = NetworkingController(modal_controller)
         status_sync_controller = StatusSyncController(k8s_client)
 
-        # Get sidecar image configurations from environment
-        logger_image = os.getenv("LOGGER_IMAGE", "ghcr.io/solanyn/modal-operator-logger:latest")
-        proxy_image = os.getenv("PROXY_IMAGE", "ghcr.io/solanyn/modal-operator-proxy:latest")
-        mutating_webhook = ModalWebhookController(k8s_client, logger_image, proxy_image)
+        # Get operator image (same image used for operator, logger, and proxy with different commands)
+        operator_image = os.getenv("OPERATOR_IMAGE", "ghcr.io/solanyn/modal-operator:latest")
+        mutating_webhook = ModalWebhookController(k8s_client, operator_image)
 
         logger.info("All controllers initialized successfully")
     except Exception as e:
