@@ -176,7 +176,7 @@ class ModalWebhookController:
                     "name": original_containers[0].get("name", "logger"),
                     "image": self.operator_image,
                     "imagePullPolicy": "IfNotPresent",
-                    "command": ["python3", "-m", "modal_operator.logger"],
+                    "command": ["modal-logger"],
                     "env": [
                         {"name": "POD_NAME", "value": pod_name},
                         {
@@ -201,7 +201,7 @@ class ModalWebhookController:
                     "name": "proxy",
                     "image": self.operator_image,
                     "imagePullPolicy": "IfNotPresent",
-                    "command": ["python3", "-m", "modal_operator.proxy"],
+                    "command": ["modal-proxy"],
                     "ports": [{"containerPort": 1080, "name": "proxy", "protocol": "TCP"}],
                     "env": [{"name": "PROXY_PORT", "value": "1080"}, {"name": "POD_NAME", "value": pod_name}],
                     "resources": {

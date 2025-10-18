@@ -73,9 +73,9 @@ class TestModalWebhookController:
         assert logger_container["image"] == "ghcr.io/solanyn/modal-operator:latest"
         assert proxy_container["image"] == "ghcr.io/solanyn/modal-operator:latest"
 
-        # Verify different commands
-        assert logger_container["command"] == ["python3", "-m", "modal_operator.logger"]
-        assert proxy_container["command"] == ["python3", "-m", "modal_operator.proxy"]
+        # Verify different commands (using console scripts)
+        assert logger_container["command"] == ["modal-logger"]
+        assert proxy_container["command"] == ["modal-proxy"]
 
         # Check environment variables (plural arrays now)
         env_vars = logger_container["env"]

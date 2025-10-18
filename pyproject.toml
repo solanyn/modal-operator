@@ -52,6 +52,8 @@ Source = "https://github.com/modal-labs/mvgpu-operator"
 
 [project.scripts]
 modal-operator = "modal_operator.__main__:main"
+modal-logger = "modal_operator.logger:main"
+modal-proxy = "modal_operator.proxy:main"
 
 [tool.setuptools.packages.find]
 include = ["modal_operator", "modal_operator.*"]
