@@ -1,0 +1,86 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":automergeDigest",
+    ":automergeMinor",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Python dependencies via uv",
+      "matchManagers": ["pip_requirements", "pip_setup"],
+      "rangeStrategy": "pin",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps-python"
+    },
+    {
+      "description": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Docker base images",
+      "matchDatasources": ["docker"],
+      "semanticCommitType": "build",
+      "semanticCommitScope": "docker",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Helm chart dependencies",
+      "matchManagers": ["helm-values", "helmfile"],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "helm"
+    },
+    {
+      "description": "Group Modal SDK updates",
+      "matchPackagePatterns": ["^modal"],
+      "groupName": "Modal SDK",
+      "semanticCommitType": "feat",
+      "semanticCommitScope": "modal",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Group Kubernetes client libraries",
+      "matchPackagePatterns": ["^kubernetes"],
+      "groupName": "Kubernetes clients",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "k8s"
+    },
+    {
+      "description": "Group test/dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchPackagePatterns": ["^pytest", "^ruff", "^mypy"],
+      "groupName": "test/dev dependencies",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "dev-deps",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Pin distroless images to specific digests",
+      "matchDatasources": ["docker"],
+      "matchPackagePatterns": ["gcr.io/distroless"],
+      "rangeStrategy": "pin",
+      "semanticCommitType": "build",
+      "semanticCommitScope": "distroless"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "semanticCommitType": "fix",
+    "semanticCommitScope": "security"
+  },
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 2,
+  "schedule": ["after 10pm every weekday", "before 6am every weekday", "every weekend"],
+  "timezone": "UTC",
+  "assignees": [],
+  "reviewers": []
+}
