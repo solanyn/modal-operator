@@ -8,10 +8,6 @@ COPY pyproject.toml uv.lock ./
 COPY modal_operator/ ./modal_operator/
 COPY README.md ./
 
-# Copy sidecar components into the package
-COPY docker/modal-logger/logger.py ./modal_operator/logger.py
-COPY tunnel/proxy.py ./modal_operator/proxy.py
-
 # Install dependencies in a virtual environment
 RUN uv venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
