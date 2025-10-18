@@ -17,8 +17,15 @@ logger = logging.getLogger(__name__)
 class ModalWebhookController:
     """Mutating admission webhook controller for Modal pod interception."""
 
-    def __init__(self, k8s_client: client.CoreV1Api):
+    def __init__(
+        self,
+        k8s_client: client.CoreV1Api,
+        logger_image: str = "ghcr.io/solanyn/modal-operator-logger:latest",
+        proxy_image: str = "ghcr.io/solanyn/modal-operator-proxy:latest",
+    ):
         self.k8s_client = k8s_client
+        self.logger_image = logger_image
+        self.proxy_image = proxy_image
 
     def mutate_pod(self, admission_request: Dict[str, Any]) -> Dict[str, Any]:
         """Mutate pod if it should run on Modal.
@@ -169,10 +176,14 @@ class ModalWebhookController:
             "value": [
                 {
                     "name": original_containers[0].get("name", "logger"),
-                    "image": "modal-operator/logger:latest",
+                    "image": self.logger_image,
                     "imagePullPolicy": "IfNotPresent",
                     "env": [
                         {"name": "POD_NAME", "value": pod_name},
+                        {
+                            "name": "POD_NAMESPACE",
+                            "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}},
+                        },
                         {"name": "MODAL_EXECUTION", "value": "true"},
                         {"name": "ORIGINAL_IMAGES", "value": json.dumps(all_images)},
                         {"name": "ORIGINAL_NAMES", "value": json.dumps(all_names)},
@@ -189,7 +200,7 @@ class ModalWebhookController:
                 },
                 {
                     "name": "proxy",
-                    "image": "modal-operator/proxy:latest",
+                    "image": self.proxy_image,
                     "imagePullPolicy": "IfNotPresent",
                     "ports": [{"containerPort": 1080, "name": "proxy", "protocol": "TCP"}],
                     "env": [{"name": "PROXY_PORT", "value": "1080"}, {"name": "POD_NAME", "value": pod_name}],

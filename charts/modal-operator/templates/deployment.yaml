@@ -54,6 +54,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.modal.tokenSecret }}
                   key: MODAL_TOKEN_SECRET
+            - name: LOGGER_IMAGE
+              value: "{{ .Values.sidecarImages.logger.repository }}:{{ .Values.sidecarImages.logger.tag | default .Chart.AppVersion }}"
+            - name: PROXY_IMAGE
+              value: "{{ .Values.sidecarImages.proxy.repository }}:{{ .Values.sidecarImages.proxy.tag | default .Chart.AppVersion }}"
           livenessProbe:
             httpGet:
               path: /healthz
