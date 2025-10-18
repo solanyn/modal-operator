@@ -261,7 +261,9 @@ class ModalJobController:
             }
 
         try:
-            app = modal.App(name=f"function-{name}")
+            # Create Modal app for function
+            deployment_name = f"{name}-function"
+            app = modal.App(deployment_name)
             self._apps[name] = app
 
             modal_image = modal.Image.from_registry(image)
@@ -277,23 +279,54 @@ class ModalJobController:
             if gpu:
                 function_kwargs["gpu"] = gpu
 
+            # Create web endpoint function that wraps the user's handler
             @app.function(serialized=True, **function_kwargs)
-            def serverless_function(*args, **kwargs):
+            @modal.web_endpoint()
+            def serverless_function():
                 import importlib
                 import os
 
+                # Set environment variables
                 if env:
                     for key, value in env.items():
                         os.environ[key] = value
 
+                # Import and call the handler
                 module_name, func_name = handler.rsplit(".", 1)
                 module = importlib.import_module(module_name)
                 func = getattr(module, func_name)
 
-                return func(*args, **kwargs)
+                # Call the function and return result
+                return func()
 
-            with app.run():
-                function_url = f"https://{app.app_id}.modal.run"
+            # Check for existing deployment with same name and stop it
+            try:
+                from modal.experimental import list_deployed_apps
+
+                deployed_apps = await list_deployed_apps.aio()
+                for app_info in deployed_apps:
+                    if app_info.name == deployment_name:
+                        logger.info(
+                            f"Found existing deployment {app_info.app_id} with name {deployment_name}, stopping it"
+                        )
+                        # Stop the old deployment
+                        from modal_proto import api_pb2
+
+                        client = modal.Client.from_env()
+                        stop_request = api_pb2.AppStopRequest(app_id=app_info.app_id)
+                        client.stub.AppStop(stop_request)
+                        logger.info(f"Stopped old deployment {app_info.app_id}")
+                        break
+            except Exception as e:
+                logger.info(f"No existing deployment to stop (this is normal for first deployment): {e}")
+
+            # Deploy function persistently
+            with modal.enable_output():
+                # Deploy the app (keeps it running)
+                await app.deploy.aio(name=deployment_name)
+
+                # Get the function URL
+                function_url = serverless_function.web_url
 
                 return {
                     "app_id": app.app_id,

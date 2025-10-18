@@ -263,7 +263,7 @@ async def update_modal_job(spec, name, namespace, status, logger, **kwargs):
 
 # ModalEndpoint CRD handlers
 @kopf.on.create("modal-operator.io", "v1alpha1", "modalfunctions")
-async def create_modal_function(spec, name, namespace, **kwargs):
+async def create_modal_function(spec, name, namespace, logger, **kwargs):
     """Handle ModalFunction creation."""
 
     logger.info(f"Creating Modal function {name} in namespace {namespace}")
@@ -312,25 +312,99 @@ async def create_modal_function(spec, name, namespace, **kwargs):
                 logger.warning(f"Failed to create Service for ModalFunction {name}: {svc_error}")
                 # Don't fail the whole operation if service creation fails
 
-        status = {
-            "phase": "Deployed" if result["status"] == "deployed" else "Failed",
-            "modal_app_id": result.get("app_id"),
-            "function_url": result.get("function_url"),
-            "message": result.get("error", "Function deployed successfully"),
-        }
+        # Update status using direct patching (same as ModalEndpoint)
+        try:
+            custom_api = client.CustomObjectsApi()
 
-        return status
+            status_patch = {
+                "status": {
+                    "phase": "Deployed",
+                    "modal_app_id": result.get("app_id"),
+                    "function_url": result.get("function_url"),
+                    "deployed_at": datetime.utcnow().isoformat(),
+                    "conditions": [
+                        {
+                            "type": "Deployed",
+                            "status": "True",
+                            "lastTransitionTime": datetime.utcnow().isoformat(),
+                            "reason": "FunctionDeployed",
+                            "message": f"Modal function deployed successfully at {result.get('function_url')}",
+                        }
+                    ],
+                }
+            }
+
+            custom_api.patch_namespaced_custom_object_status(
+                group="modal-operator.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="modalfunctions",
+                name=name,
+                body=status_patch,
+            )
+            logger.info(
+                f"Successfully updated status for ModalFunction {name} to Deployed. URL: {result.get('function_url')}"
+            )
+
+        except Exception as status_error:
+            logger.error(f"Failed to update status for ModalFunction {name}: {status_error}")
+            # Don't fail the whole operation if status update fails
+            metrics.record_error(error_type="status_update_failed", component="kubernetes_api")
+
+        return None
 
     except Exception as e:
-        logger.error(f"Failed to create Modal function {name}: {e}")
-        return {"phase": "Failed", "message": str(e)}
+        logger.error(f"Failed to create Modal function {name}: {e}", exc_info=True)
+
+        # Record error metrics
+        error_type = type(e).__name__
+        metrics.record_error(error_type=f"function_creation_failed_{error_type.lower()}", component="modal_client")
+
+        # Update status to Failed with detailed error info
+        try:
+            custom_api = client.CustomObjectsApi()
+            status_patch = {
+                "status": {
+                    "phase": "Failed",
+                    "conditions": [
+                        {
+                            "type": "Deployed",
+                            "status": "False",
+                            "lastTransitionTime": datetime.utcnow().isoformat(),
+                            "reason": f"CreationFailed_{error_type}",
+                            "message": f"{error_type}: {str(e)[:200]}",
+                        }
+                    ],
+                }
+            }
+
+            custom_api.patch_namespaced_custom_object_status(
+                group="modal-operator.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="modalfunctions",
+                name=name,
+                body=status_patch,
+            )
+        except Exception as patch_error:
+            logger.error(f"Failed to update Failed status for ModalFunction {name}: {patch_error}")
+
+        return None
 
 
 @kopf.on.delete("modal-operator.io", "v1alpha1", "modalfunctions")
-async def delete_modal_function(spec, name, namespace, **kwargs):
+async def delete_modal_function(spec, name, namespace, status, logger, **kwargs):
     """Handle ModalFunction deletion."""
 
     logger.info(f"Deleting Modal function {name} in namespace {namespace}")
+
+    # Stop Modal app if it exists
+    if status and status.get("modal_app_id"):
+        try:
+            await modal_controller.delete_app(status["modal_app_id"])
+            logger.info(f"Stopped Modal app {status['modal_app_id']} for function {name}")
+        except Exception as e:
+            logger.warning(f"Failed to stop Modal app for function {name}: {e}")
 
     # Delete associated Kubernetes Service
     try:
