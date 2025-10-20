@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "modal-operator"
 description = "Modal Operator for Kubernetes - enables serverless compute workloads by offloading pods to Modal's cloud infrastructure"
 readme = "README.md"
-version = "0.0.4"
+version = "0.0.5"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 
