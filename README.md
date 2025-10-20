@@ -1,5 +1,7 @@
 # Modal Operator
 
+> **Note:** This project is not affiliated with or endorsed by Modal Labs.
+
 Run Kubernetes workloads on Modal's serverless infrastructure - get instant GPU access, pay only for compute time, and keep your existing K8s workflows.
 
 ## Why Use This?
