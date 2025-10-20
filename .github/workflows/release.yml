@@ -65,6 +65,6 @@ jobs:
 
   publish-helm-chart:
     name: Publish Helm Chart
-    needs: create-release
+    needs: build-and-push-image
     uses: ./.github/workflows/publish-chart.yml
     secrets: inherit
