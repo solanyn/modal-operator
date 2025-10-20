@@ -33,7 +33,6 @@ The operator provides three ways to run workloads on Modal:
 1. **ModalJob CRD** - For batch jobs and training workloads
 2. **ModalEndpoint CRD** - For HTTP services and inference endpoints
 3. **ModalFunction CRD** - For serverless functions callable from Kubernetes
-4. **Pod Annotations** - For automatic GPU pod offloading
 
 ### ModalJob - Batch Workloads
 
@@ -162,39 +161,6 @@ spec:
   - name: placeholder
     image: busybox
     command: ["sleep", "infinity"]
-```
-
-### Basic GPU Pod Offloading
-
-Add the annotation to any pod that should be offloaded to Modal:
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gpu-training
-  annotations:
-    modal-operator.io/offload: "true"
-    modal-operator.io/gpu-type: "A100"  # Optional: specify GPU type
-    modal-operator.io/tunnel: "true"    # Optional: enable secure tunneling
-    modal-operator.io/tunnel-port: "8000"  # Optional: tunnel port (default: 8000)
-spec:
-  containers:
-  - name: training
-    image: pytorch/pytorch:latest
-    resources:
-      requests:
-        nvidia.com/gpu: 1
-```
-
-### Automatic GPU Detection
-
-Pods requesting GPU resources are automatically detected and offloaded:
-
-```yaml
-resources:
-  requests:
-    nvidia.com/gpu: 1  # Automatically triggers Modal offloading
 ```
 
 ### Kubeflow Integration
