@@ -1,4 +1,3 @@
-{{- if .Values.webhook.enabled }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -65,4 +64,3 @@ spec:
     protocol: TCP
   selector:
     {{- include "modal-operator.selectorLabels" . | nindent 4 }}
-{{- end }}

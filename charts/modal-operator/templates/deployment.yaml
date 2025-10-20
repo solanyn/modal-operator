@@ -48,12 +48,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.modal.tokenSecret }}
-                  key: MODAL_TOKEN_ID
+                  key: {{ .Values.modal.tokenIdKey }}
             - name: MODAL_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.modal.tokenSecret }}
-                  key: MODAL_TOKEN_SECRET
+                  key: {{ .Values.modal.tokenSecretKey }}
             - name: OPERATOR_IMAGE
               value: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           livenessProbe:
@@ -70,18 +70,14 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.webhook.enabled }}
           volumeMounts:
           - name: webhook-certs
             mountPath: /etc/certs
             readOnly: true
-          {{- end }}
-      {{- if .Values.webhook.enabled }}
       volumes:
       - name: webhook-certs
         secret:
           secretName: {{ include "modal-operator.fullname" . }}-webhook-cert
-      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -32,6 +32,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/.venv/lib/python3.11/site-packages:/app
 
 # Default to running operator (can be overridden in pod spec)
-# Logger: modal-logger
-# Proxy: modal-proxy
-ENTRYPOINT ["modal-operator"]
+# Logger: python -m modal_operator.logger
+# Proxy: python -m modal_operator.proxy
+ENTRYPOINT ["/app/.venv/bin/python", "-m", "modal_operator"]

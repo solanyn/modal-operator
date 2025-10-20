@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "modal-operator"
 description = "Modal Operator for Kubernetes - enables serverless compute workloads by offloading pods to Modal's cloud infrastructure"
 readme = "README.md"
-version = "0.0.2"
+version = "0.0.4"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 
@@ -49,11 +49,6 @@ dev = [
 Homepage = "https://github.com/modal-labs/mvgpu-operator"
 Source = "https://github.com/modal-labs/mvgpu-operator"
 "Issue Tracker" = "https://github.com/modal-labs/mvgpu-operator/issues"
-
-[project.scripts]
-modal-operator = "modal_operator.__main__:main"
-modal-logger = "modal_operator.logger:main"
-modal-proxy = "modal_operator.proxy:main"
 
 [tool.setuptools.packages.find]
 include = ["modal_operator", "modal_operator.*"]
