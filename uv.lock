@@ -980,7 +980,7 @@ wheels = [
 
 [[package]]
 name = "modal-operator"
-version = "0.0.2"
+version = "0.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
