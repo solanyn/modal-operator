@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   create-release:
@@ -20,12 +19,9 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes
-        id: release_notes
         run: |
-          # Get the previous tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
 
-          # Generate changelog
           if [ -n "$PREV_TAG" ]; then
             echo "## What's Changed" > release_notes.md
             git log ${PREV_TAG}..HEAD --pretty=format:"* %s (%h)" >> release_notes.md
@@ -56,15 +52,3 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           generate_release_notes: true
-
-  build-and-push-image:
-    name: Build and Push Release Image
-    needs: create-release
-    uses: ./.github/workflows/build-image.yml
-    secrets: inherit
-
-  publish-helm-chart:
-    name: Publish Helm Chart
-    needs: build-and-push-image
-    uses: ./.github/workflows/publish-chart.yml
-    secrets: inherit
