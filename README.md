@@ -20,11 +20,16 @@ kubectl apply ModalApp (inline Python) → operator runs modal deploy → Extern
 ## Installation
 
 ```bash
+# Install CRDs
+kubectl apply -f https://raw.githubusercontent.com/solanyn/modal-operator/main/deploy/crds.yaml
+
+# Create Modal credentials
 kubectl create secret generic modal-credentials \
   --namespace modal-system \
   --from-literal=MODAL_TOKEN_ID="your-token-id" \
   --from-literal=MODAL_TOKEN_SECRET="your-token-secret"
 
+# Install operator
 helm install modal-operator oci://ghcr.io/solanyn/charts/modal-operator \
   --namespace modal-system --create-namespace
 ```
