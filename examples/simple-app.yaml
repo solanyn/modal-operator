@@ -1,0 +1,15 @@
+apiVersion: modal.internal.io/v1alpha1
+kind: ModalApp
+metadata:
+  name: hello-modal
+  namespace: default
+spec:
+  source: |
+    import modal
+
+    app = modal.App("hello-modal")
+
+    @app.function()
+    @modal.web_endpoint()
+    def hello():
+        return {"message": "Hello from Modal!"}

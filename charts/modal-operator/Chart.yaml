@@ -1,13 +1,12 @@
 apiVersion: v2
 name: modal-operator
-description: Modal vGPU Operator for Kubernetes
+description: Kubernetes operator for managing Modal apps with in-cluster service discovery
 type: application
-version: 0.0.5
-appVersion: "0.0.5"
+version: 0.1.0
+appVersion: "0.2.0"
 keywords:
-  - gpu
   - modal
   - serverless
   - kubernetes
 maintainers:
-  - name: Modal vGPU Team
+  - name: solanyn

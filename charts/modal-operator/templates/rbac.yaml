@@ -5,27 +5,21 @@ metadata:
   labels:
     {{- include "modal-operator.labels" . | nindent 4 }}
 rules:
+- apiGroups: ["modal.internal.io"]
+  resources: ["modalapps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["modal.internal.io"]
+  resources: ["modalapps/status"]
+  verbs: ["get", "update", "patch"]
 - apiGroups: [""]
-  resources: ["pods", "pods/status"]
+  resources: ["services"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: [""]
-  resources: ["services", "endpoints"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  resources: ["secrets", "configmaps"]
+  verbs: ["get", "list"]
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["create", "patch"]
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apiextensions.k8s.io"]
-  resources: ["customresourcedefinitions"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["modal-operator.io"]
-  resources: ["modaljobs", "modalendpoints", "modalfunctions"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["modal-operator.io"]
-  resources: ["modaljobs/status", "modalendpoints/status", "modalfunctions/status"]
-  verbs: ["get", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

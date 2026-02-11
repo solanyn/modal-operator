@@ -1,0 +1,24 @@
+apiVersion: modal.internal.io/v1alpha1
+kind: ModalApp
+metadata:
+  name: devstral-small
+  namespace: ai
+spec:
+  appName: llm-devstral-small
+  source: |
+    import modal
+
+    app = modal.App("llm-devstral-small")
+
+    @app.function(gpu="L40S")
+    @modal.web_server(port=8000)
+    def serve():
+        import subprocess
+        subprocess.Popen(["python", "-m", "vllm.entrypoints.openai.api_server",
+            "--model", "mistralai/Devstral-Small-2505",
+            "--port", "8000"])
+  envFrom:
+    - secretRef:
+        name: huggingface-token
+  env:
+    MODEL_NAME: "mistralai/Devstral-Small-2505"
