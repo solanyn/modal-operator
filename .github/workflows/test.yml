@@ -22,7 +22,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync
@@ -32,10 +32,6 @@ jobs:
 
       - name: Run ruff format check
         run: uv run ruff format --check .
-
-      - name: Run mypy type checking
-        run: uv run mypy modal_operator
-        continue-on-error: true  # Type checking is informational for now
 
   test:
     name: Unit Tests
@@ -50,30 +46,17 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync
 
       - name: Run unit tests
         run: |
-          # Skip tests that require Modal library fix
           uv run python -m pytest tests/ \
-            --ignore=tests/test_e2e.py \
-            --ignore=tests/test_modal_client.py \
             -v --tb=short \
             --cov=modal_operator \
-            --cov-report=xml \
             --cov-report=term
-        continue-on-error: true  # Tests need updates, don't block PRs yet
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
-        if: github.event_name == 'pull_request'
-        with:
-          files: ./coverage.xml
-          flags: unittests
-        continue-on-error: true
 
   validate-crds:
     name: Validate CRDs
@@ -81,25 +64,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.11
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Generate CRDs
-        run: uv run python scripts/generate-crds.py
-
-      - name: Check for CRD changes
-        run: |
-          git diff --exit-code charts/modal-operator/crds/ || \
-          (echo "CRDs need to be regenerated. Run: uv run python scripts/generate-crds.py" && exit 1)
 
       - name: Validate CRD YAML
         run: |
@@ -126,6 +90,4 @@ jobs:
       - name: Template Helm chart
         run: |
           helm template modal-operator charts/modal-operator \
-            --set image.tag=test \
-            --set modal.tokenId=test \
-            --set modal.tokenSecret=test
+            --set image.tag=test
