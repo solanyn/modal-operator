@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -19,6 +19,6 @@ COPY --from=builder /app/modal_operator /app/modal_operator
 
 ENV PATH="/app/.venv/bin:/usr/local/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app/.venv/lib/python3.13/site-packages:/app
+ENV PYTHONPATH=/app/.venv/lib/python3.11/site-packages:/app
 
 ENTRYPOINT ["python3", "-m", "modal_operator"]
