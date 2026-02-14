@@ -9,6 +9,7 @@ COPY README.md ./
 RUN uv venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 RUN uv sync --frozen && uv pip install -e .
+RUN find /app/.venv/bin -type f -exec sed -i '1s|^#!.*/python[^ ]*|#!/usr/bin/python3|' {} +
 
 FROM gcr.io/distroless/python3-debian12:nonroot
 
