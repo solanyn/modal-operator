@@ -1,8 +1,7 @@
-import logging
-
+import structlog
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 apps_deployed = Counter("modal_apps_deployed_total", "Total Modal apps deployed", ["namespace"])
 apps_failed = Counter("modal_apps_failed_total", "Total Modal app deploy failures", ["namespace"])
