@@ -4,7 +4,7 @@ import modal_operator.operator  # noqa: F401
 def main():
     import kopf
 
-    kopf.run()
+    kopf.run(clusterwide=True)
 
 
 if __name__ == "__main__":
