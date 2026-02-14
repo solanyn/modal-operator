@@ -88,6 +88,51 @@ async def create_modal_app(spec, name, namespace, meta, logger, **kwargs):
     }
 
 
+@kopf.on.resume("modal.internal.io", "v1alpha1", "modalapps")
+async def resume_modal_app(spec, name, namespace, meta, logger, **kwargs):
+    app_spec = ModalAppSpec(**spec)
+    app_name = app_spec.appName or name
+
+    env_vars = app_spec.env.copy()
+    if app_spec.envFrom:
+        env_vars.update(_read_env_from(app_spec.envFrom, namespace))
+
+    start = time.monotonic()
+    result: DeployResult = await deployer.deploy_app(app_name, app_spec.source, env_vars)
+    deploy_duration.observe(time.monotonic() - start)
+
+    if not result.success:
+        apps_failed.labels(namespace=namespace).inc()
+        raise kopf.TemporaryError(f"Deploy failed: {result.error}", delay=30)
+
+    apps_deployed.labels(namespace=namespace).inc()
+    apps_active.inc()
+
+    if result.url:
+        owner_ref = _owner_ref(meta)
+        try:
+            resource_manager.create_external_service(
+                name=name,
+                namespace=namespace,
+                modal_url=result.url,
+                service_port=app_spec.servicePort,
+                owner_ref=owner_ref,
+            )
+        except ApiException as e:
+            if e.status == 409:
+                resource_manager.update_external_service(name, namespace, result.url, app_spec.servicePort)
+            else:
+                raise
+
+    return {
+        "phase": "Running",
+        "url": result.url,
+        "appId": result.app_id,
+        "lastDeployed": datetime.now(timezone.utc).isoformat(),
+        "message": f"Resumed. Access at {name}.{namespace}.svc.cluster.local",
+    }
+
+
 @kopf.on.update("modal.internal.io", "v1alpha1", "modalapps")
 async def update_modal_app(spec, name, namespace, meta, logger, **kwargs):
     app_spec = ModalAppSpec(**spec)
