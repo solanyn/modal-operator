@@ -25,6 +25,7 @@ resource_manager: Optional[ResourceManager] = None
 def configure(settings: kopf.OperatorSettings, **_):
     global operator_config, deployer, resource_manager
 
+    settings.peering.standalone = True
     settings.posting.level = logging.INFO
     settings.watching.connect_timeout = 60
     settings.watching.server_timeout = 600
