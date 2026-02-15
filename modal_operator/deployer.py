@@ -67,6 +67,8 @@ class ModalDeployer:
                 os.unlink(temp_file)
 
     async def _query_deployment(self, name: str, env: dict) -> tuple[Optional[str], Optional[str]]:
+        url = None
+        app_id = None
         try:
             from modal.experimental import list_deployed_apps
 
@@ -75,10 +77,31 @@ class ModalDeployer:
                 if app_info.name == name:
                     url = getattr(app_info, "web_url", None)
                     app_id = getattr(app_info, "app_id", None)
-                    return url, app_id
+                    break
         except Exception as e:
             logger.warning(f"Failed to query deployment info for {name}: {e}")
-        return None, None
+
+        if not url:
+            workspace = env.get("MODAL_WORKSPACE") or self._get_workspace(env)
+            if workspace:
+                url = f"https://{workspace}--{name}-serve.modal.run"
+
+        return url, app_id
+
+    def _get_workspace(self, env: dict) -> Optional[str]:
+        try:
+            result = subprocess.run(
+                ["modal", "profile", "current"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception as e:
+            logger.warning(f"Failed to get workspace: {e}")
+        return None
 
     async def stop_app(self, app_name: str) -> bool:
         try:
